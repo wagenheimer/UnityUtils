@@ -45,6 +45,12 @@ jobs:
             *) PATCH=$((PATCH+1)) ;;
           esac
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          # Skip past any tag that already exists (e.g. from earlier releases predating
+          # a version reset) so the job never fails on 'tag already exists'.
+          while git rev-parse -q --verify "refs/tags/v$NEW_VERSION" >/dev/null; do
+            PATCH=$((PATCH+1))
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          done
           jq --arg v "$NEW_VERSION" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
