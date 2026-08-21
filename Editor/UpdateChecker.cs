@@ -118,7 +118,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     notes = ExtractVersionNotes(request.downloadHandler.text, remoteVersion);
 
                 request.Dispose();
-                UpdateAvailableWindow.Show("Rewired Helper", localVersion, remoteVersion, RepoUrl, GitUrl, notes, PrefSkipVersion);
+                UpdateAvailableWindow.Show("Unity Utils", localVersion, remoteVersion, RepoUrl, GitUrl, notes, PrefSkipVersion);
             };
         }
 
@@ -159,6 +159,7 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+
 
 
 
