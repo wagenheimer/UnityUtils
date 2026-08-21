@@ -10,8 +10,8 @@ namespace Wagenheimer.UnityUtils.Editor
     {
         const string PackageDisplayName = "Unity Utils";;
         internal const string GitUrl = "https://github.com/wagenheimer/UnityUtils.git";
-        const string PackageJsonUrl = "https://raw.githubusercontent.com/wagenheimer/UnityUtils/main/package.json";
-        const string ChangelogUrl = "https://raw.githubusercontent.com/wagenheimer/UnityUtils/main/CHANGELOG.md";
+        const string PackageJsonUrl = "https://raw.githubusercontent.com/wagenheimer/UnityUtils/master/package.json";
+        const string ChangelogUrl = "https://raw.githubusercontent.com/wagenheimer/UnityUtils/master/CHANGELOG.md";
         const string RepoUrl = "https://github.com/wagenheimer/UnityUtils";
         const string PrefLastCheckTicks = "Wagenheimer.UnityUtils.UpdateChecker.LastCheckTicks";
         const string PrefSkipVersion = "Wagenheimer.UnityUtils.UpdateChecker.SkipVersion";
@@ -159,4 +159,5 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+
 
