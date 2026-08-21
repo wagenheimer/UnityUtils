@@ -1,6 +1,6 @@
 {
   "name": "com.wagenheimer.unityutils",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "displayName": "Unity Utils",
   "description": "Small, independent Unity Editor utilities: a bootstrap-scene kit that additively loads persistent singletons (audio manager, music, game manager, ...) before any other scene, and cleanup tools for duplicate AudioListeners and stranded TextMeshPro CanvasRenderer components.",
   "unity": "2021.3",
