@@ -4,8 +4,10 @@ Small, independent Unity Editor utilities, installable via Unity Package Manager
 
 - **Bootstrap Scene Kit** — additively loads a scene of persistent singletons (audio manager,
   music player, game manager, ...) before any other scene's `Awake` runs, regardless of which
-  scene Play (or the build) starts from. Removes the need to duplicate those objects in every
-  scene "just in case."
+  scene Play (or the build) actually starts from. Removes the need to duplicate those objects in
+  every scene "just in case." Now also handles being played *from* the bootstrap scene itself.
+- **Update Checker** — automatic, zero-config update notification for projects using the package,
+  just like [Rewired Helper](https://github.com/wagenheimer/RewiredHelper) has.
 - **Audio Listener Cleaner** — removes duplicate `AudioListener`s across every scene in the
   project, keeping the one on your designated persistent object.
 - **TMP CanvasRenderer Cleaner** — removes stray `CanvasRenderer` components sitting next to
@@ -33,6 +35,20 @@ https://github.com/wagenheimer/UnityUtils.git
 `Window > Package Manager > + > Add package from git URL...` and paste the URL above. To pin a
 specific version, append `#vX.Y.Z` (see the repo's tags).
 
+### Updating
+
+The package ships with a built-in **Update Checker** (`Editor/UpdateChecker.cs`):
+
+- On Editor startup it checks this repo's `package.json` (on `master`) **once every 24 hours**
+  and logs / prompts when the remote version is newer than the installed one.
+- You can force a check any time via **`Tools > Wagenheimer > Unity Utils > Check for Updates...`**.
+
+No configuration required. Checks are stored in `EditorPrefs` under
+`Wagenheimer.UnityUtils.UpdateChecker.*` and never block the Editor (5s network timeout).
+
+> Versions are bumped **automatically by CI** on every push to `master` — see
+> [Versioning & Releases](#versioning--releases) below.
+
 ## Bootstrap Scene Kit
 
 ### Why
@@ -58,6 +74,17 @@ scene was already starting.
 Keeping the persistent objects in an actual **scene** (rather than e.g. spawning them from a
 ScriptableObject config) means you can keep adding more to it later — extra managers, whatever —
 just by opening the scene and dropping things into it like any other scene.
+
+#### Playing from the Bootstrap Scene
+
+Since v1.1.0, pressing **Play while the bootstrap scene itself is open** no longer leaves you
+stuck in an empty persistent-objects scene. When that happens, `BootstrapLoader` detects it and
+additively loads the **first enabled scene in Build Settings**, then makes it the active scene —
+so you always boot into real gameplay while keeping the bootstrap (and its persistent objects)
+alive, exactly as in normal flow.
+
+This only applies in the **Editor**: in a real build the entry point is whatever scene is first
+in Build Settings, so re-loading it would just duplicate it.
 
 ### Setup
 
@@ -114,10 +141,38 @@ UnityEvents are all empty — i.e. doing nothing. Any IAPButton with real listen
 untouched (and logged), so this is safe to run even if some buttons in your project genuinely use
 Codeless IAP.
 
+## Versioning & Releases
+
+Version bumps are fully automated by GitHub Actions (`.github/workflows/bump-version.yml`):
+
+| Commit message | Version bump |
+|---|---|
+| `feat:` / `feat(scope):` | **minor** |
+| `fix:` / anything else | **patch** |
+| `feat!:` or `BREAKING CHANGE` in body | **major** |
+
+On every push to `master`, the workflow:
+
+1. Bumps `package.json` according to the commit message;
+2. Regenerates the top entry of [`CHANGELOG.md`](CHANGELOG.md) from the commits since the last tag;
+3. Commits as `chore: bump version to X.Y.Z`, tags `vX.Y.Z` and pushes;
+4. Creates a GitHub Release with auto-generated release notes.
+
+Because of that, users get update notifications from the Update Checker automatically — you never
+touch `package.json` or the changelog by hand. Just write conventional commit messages.
+
+> Note: pushes that only touch `package.json` / `CHANGELOG.md` don't trigger a new bump (that's
+> the bot committing), and neither do commits starting with `chore: bump version`.
+
 ## Requirements
 
 - Unity 2021.3+
 - `com.unity.textmeshpro` (only needed for the TMP CanvasRenderer Cleaner)
+
+## See Also
+
+- [Rewired Helper](https://github.com/wagenheimer/RewiredHelper) — input-type detection and UI
+  helper layer on top of Rewired, with the same update-check/versioning scheme.
 
 ## License
 
