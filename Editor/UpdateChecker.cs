@@ -8,7 +8,7 @@ namespace Wagenheimer.UnityUtils.Editor
     [InitializeOnLoad]
     internal static class UpdateChecker
     {
-        const string PackageDisplayName = "Unity Utils";;
+        const string PackageDisplayName = "Unity Utils";
         internal const string GitUrl = "https://github.com/wagenheimer/UnityUtils.git";
         const string PackageJsonUrl = "https://raw.githubusercontent.com/wagenheimer/UnityUtils/master/package.json";
         const string ChangelogUrl = "https://raw.githubusercontent.com/wagenheimer/UnityUtils/master/CHANGELOG.md";
@@ -159,6 +159,7 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+
 
 
 
