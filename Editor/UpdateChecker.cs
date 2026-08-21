@@ -22,7 +22,7 @@ namespace Wagenheimer.UnityUtils.Editor
             EditorApplication.delayCall += () => CheckForUpdate(force: false);
         }
 
-        [MenuItem("Tools/Wagenheimer/Rewired Helper/Check for Updates...", priority = 41)]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Check for Updates...", priority = 141)]
         static void CheckForUpdateMenuItem() => CheckForUpdate(force: true);
 
         static void CheckForUpdate(bool force)
@@ -159,5 +159,6 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+
 
 
