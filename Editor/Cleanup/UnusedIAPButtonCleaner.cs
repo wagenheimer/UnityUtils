@@ -1,8 +1,10 @@
 #if WAGENHEIMER_UNITYUTILS_IAP
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.Purchasing;
 
 namespace Wagenheimer.UnityUtils.Editor
@@ -12,9 +14,11 @@ namespace Wagenheimer.UnityUtils.Editor
     /// wires up Codeless IAPButton events, leftover IAPButton components (e.g. from an old codeless
     /// setup) still trigger CodelessIAPStoreListener's automatic RuntimeInitializeOnLoadMethod init,
     /// producing "IStoreService.Connect called without a callback defined..." warnings on every
-    /// play. This removes IAPButton components whose onPurchaseComplete/onPurchaseFailed/
-    /// onTransactionsRestored are all empty — i.e. ones doing nothing — and leaves any IAPButton
-    /// with real listeners untouched (logging a warning so you can double check).
+    /// play. This removes IAPButton components whose UnityEvent fields (onPurchaseComplete,
+    /// onOrderConfirmed, onPurchaseFailed, ... — inspected via reflection so this keeps working
+    /// across com.unity.purchasing versions that rename/add/remove event fields) are all empty —
+    /// i.e. ones doing nothing — and leaves any IAPButton with real listeners untouched (logging a
+    /// warning so you can double check).
     /// </summary>
     public static class UnusedIAPButtonCleaner
     {
@@ -139,15 +143,21 @@ namespace Wagenheimer.UnityUtils.Editor
             }
         }
 
+        private static readonly FieldInfo[] EventFields = typeof(IAPButton)
+            .GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .Where(f => typeof(UnityEventBase).IsAssignableFrom(f.FieldType))
+            .ToArray();
+
         private static int RemoveIfUnused(IAPButton button)
         {
             if (button == null) return 0;
 
             var so = new SerializedObject(button);
-            var hasListeners =
-                so.FindProperty("onPurchaseComplete.m_PersistentCalls.m_Calls").arraySize > 0 ||
-                so.FindProperty("onPurchaseFailed.m_PersistentCalls.m_Calls").arraySize > 0 ||
-                so.FindProperty("onTransactionsRestored.m_PersistentCalls.m_Calls").arraySize > 0;
+            var hasListeners = EventFields.Any(field =>
+            {
+                var property = so.FindProperty($"{field.Name}.m_PersistentCalls.m_Calls");
+                return property is { arraySize: > 0 };
+            });
 
             if (hasListeners)
             {
