@@ -14,6 +14,11 @@ Small, independent Unity Editor utilities, installable via Unity Package Manager
 - **TMP TextContainer Cleaner** — removes the obsolete `TMPro.TextContainer` component left over
   on `TextMeshPro` objects from older TMP versions, which otherwise spam `"The Text Container
   component is now Obsolete and can safely be removed..."` warnings.
+- **Unused IAPButton Cleaner** *(only active if `com.unity.purchasing` is installed)* — removes
+  Codeless `IAPButton` components whose purchase/failure/restore events are all empty. Leftover
+  IAPButton components with nothing wired to them still trigger Codeless IAP's automatic store
+  connection on startup, which otherwise spams `"IStoreService.Connect called without a callback
+  defined..."` warnings for projects that drive purchases through `UnityIAPServices` directly.
 
 Each tool is standalone — use one, some, or all of them.
 
@@ -97,6 +102,17 @@ GameObject as a world-space `TextMeshPro` component. Fully generic — no projec
 
 Scans every scene and prefab in the project and removes any obsolete `TMPro.TextContainer`
 component it finds. Fully generic — no project-specific paths.
+
+## Unused IAPButton Cleaner
+
+`Tools > Unity Utils > Cleanup > Remove Unused IAPButton Components (All Scenes && Prefabs)`
+(and an `(Active Scene Only)` variant)
+
+Only compiled in when `com.unity.purchasing` is installed. Scans every scene and prefab, and
+removes any `IAPButton` whose `onPurchaseComplete`/`onPurchaseFailed`/`onTransactionsRestored`
+UnityEvents are all empty — i.e. doing nothing. Any IAPButton with real listeners wired is left
+untouched (and logged), so this is safe to run even if some buttons in your project genuinely use
+Codeless IAP.
 
 ## Requirements
 

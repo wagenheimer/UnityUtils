@@ -3,7 +3,8 @@
     "rootNamespace": "Wagenheimer.UnityUtils.Editor",
     "references": [
         "Wagenheimer.UnityUtils",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Unity.Purchasing.Codeless"
     ],
     "includePlatforms": [
         "Editor"
@@ -14,6 +15,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.purchasing",
+            "expression": "",
+            "define": "WAGENHEIMER_UNITYUTILS_IAP"
+        }
+    ],
     "noEngineReferences": false
 }
