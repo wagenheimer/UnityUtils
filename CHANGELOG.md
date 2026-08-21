@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.0.8] - 2026-08-21
+
+### Fixed
+- add UpdateAvailableWindow to UnityUtils and pass correct package name
+
 ## [1.0.7] - 2026-08-21
 
 ### Fixed
