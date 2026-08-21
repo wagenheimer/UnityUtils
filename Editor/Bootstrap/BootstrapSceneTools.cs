@@ -29,7 +29,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 return;
             }
 
-            var directory = Path.GetDirectoryName(DefaultSettingsPath);
+            var directory = AssetDirectoryOf(DefaultSettingsPath);
             if (!AssetDatabase.IsValidFolder(directory))
                 CreateFolderRecursive(directory);
 
@@ -74,7 +74,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     EditorSceneManager.MoveGameObjectToScene(instance, scene);
             }
 
-            var directory = Path.GetDirectoryName(scenePath);
+            var directory = AssetDirectoryOf(scenePath);
             if (!AssetDatabase.IsValidFolder(directory))
                 CreateFolderRecursive(directory);
 
@@ -253,6 +253,17 @@ namespace Wagenheimer.UnityUtils.Editor
             EditorBuildSettings.scenes = scenes.ToArray();
         }
 
+        /// <summary>
+        /// Unlike <see cref="Path.GetDirectoryName(string)"/> — which normalizes '/' to '\' on
+        /// Windows, breaking any subsequent '/'-based splitting of a Unity asset path — this stays
+        /// on plain forward slashes throughout, matching what AssetDatabase always expects.
+        /// </summary>
+        private static string AssetDirectoryOf(string assetPath)
+        {
+            var lastSlash = assetPath.LastIndexOf('/');
+            return lastSlash < 0 ? string.Empty : assetPath[..lastSlash];
+        }
+
         private static void CreateFolderRecursive(string path)
         {
             var parts = path.Split('/');
@@ -262,7 +273,11 @@ namespace Wagenheimer.UnityUtils.Editor
             {
                 var next = $"{current}/{parts[i]}";
                 if (!AssetDatabase.IsValidFolder(next))
-                    AssetDatabase.CreateFolder(current, parts[i]);
+                {
+                    var createdGuid = AssetDatabase.CreateFolder(current, parts[i]);
+                    if (string.IsNullOrEmpty(createdGuid))
+                        Debug.LogError($"[BootstrapSceneTools] Failed to create folder '{next}'.");
+                }
 
                 current = next;
             }
