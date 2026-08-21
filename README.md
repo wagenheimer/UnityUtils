@@ -11,6 +11,9 @@ Small, independent Unity Editor utilities, installable via Unity Package Manager
 - **TMP CanvasRenderer Cleaner** — removes stray `CanvasRenderer` components sitting next to
   world-space `TextMeshPro` objects (the `CanvasRenderer` is only needed by the UGUI variant),
   which otherwise spam `"Please remove the CanvasRenderer component..."` warnings.
+- **TMP TextContainer Cleaner** — removes the obsolete `TMPro.TextContainer` component left over
+  on `TextMeshPro` objects from older TMP versions, which otherwise spam `"The Text Container
+  component is now Obsolete and can safely be removed..."` warnings.
 
 Each tool is standalone — use one, some, or all of them.
 
@@ -86,6 +89,14 @@ keeping the first one found (logging a warning so you can double check).
 
 Scans every scene and prefab in the project and removes any `CanvasRenderer` sitting on the same
 GameObject as a world-space `TextMeshPro` component. Fully generic — no project-specific paths.
+
+## TMP TextContainer Cleaner
+
+`Tools > Unity Utils > Cleanup > Remove Obsolete TMP TextContainer (All Scenes && Prefabs)`
+(and an `(Active Scene Only)` variant)
+
+Scans every scene and prefab in the project and removes any obsolete `TMPro.TextContainer`
+component it finds. Fully generic — no project-specific paths.
 
 ## Requirements
 
