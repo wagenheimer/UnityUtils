@@ -25,7 +25,7 @@ namespace Wagenheimer.UnityUtils.Editor
         [MenuItem("Tools/Wagenheimer/Unity Utils/Check for Updates...", priority = 141)]
         static void CheckForUpdateMenuItem() => CheckForUpdate(force: true);
 
-        static void CheckForUpdate(bool force)
+        internal static void CheckForUpdate(bool force)
         {
             if (!force && !IntervalElapsed())
                 return;
@@ -159,6 +159,7 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+
 
 
 
