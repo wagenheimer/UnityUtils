@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.1.0] - 2026-08-22
+
+### Added
+- unify menus under Tools > Wagenheimer and add About window
+
 ## [1.0.8] - 2026-08-21
 
 ### Fixed
