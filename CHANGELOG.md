@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.1.1] - 2026-08-22
+
+### Fixed
+- make UpdateChecker.CheckForUpdate internal so AboutWindow can call it
+
 ## [1.1.0] - 2026-08-22
 
 ### Added
