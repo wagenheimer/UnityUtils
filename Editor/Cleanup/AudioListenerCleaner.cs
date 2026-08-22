@@ -14,7 +14,7 @@ namespace Wagenheimer.UnityUtils.Editor
     /// </summary>
     public static class AudioListenerCleaner
     {
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Duplicate Audio Listeners (Active Scene Only)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Duplicate Audio Listeners (Active Scene Only)")]
         private static void RemoveDuplicateAudioListenersInActiveScene()
         {
             var preferredPrefabPath = GetPreferredPrefabPath();
@@ -31,7 +31,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 $"Removed {removed} duplicate AudioListener(s) from '{scene.name}'.", "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Duplicate Audio Listeners (All Scenes)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Duplicate Audio Listeners (All Scenes)")]
         private static void RemoveDuplicateAudioListeners()
         {
             var preferredPrefabPath = GetPreferredPrefabPath();
@@ -131,3 +131,4 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+

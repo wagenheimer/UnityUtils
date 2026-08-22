@@ -18,7 +18,7 @@ namespace Wagenheimer.UnityUtils.Editor
     /// </summary>
     public static class TMPCanvasRendererCleaner
     {
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Redundant TMP CanvasRenderer (Active Scene Only)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Redundant TMP CanvasRenderer (Active Scene Only)")]
         public static void RunOnActiveScene()
         {
             var scene = EditorSceneManager.GetActiveScene();
@@ -35,7 +35,7 @@ namespace Wagenheimer.UnityUtils.Editor
             EditorUtility.DisplayDialog("Remove Redundant TMP CanvasRenderer", message, "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Redundant TMP CanvasRenderer (All Scenes && Prefabs)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Redundant TMP CanvasRenderer (All Scenes && Prefabs)")]
         public static void RunOnProject()
         {
             if (!EditorUtility.DisplayDialog("Remove Redundant TMP CanvasRenderer",
@@ -159,3 +159,4 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+

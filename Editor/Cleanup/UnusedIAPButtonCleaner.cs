@@ -22,7 +22,7 @@ namespace Wagenheimer.UnityUtils.Editor
     /// </summary>
     public static class UnusedIAPButtonCleaner
     {
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Unused IAPButton Components (Active Scene Only)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Unused IAPButton Components (Active Scene Only)")]
         public static void RunOnActiveScene()
         {
             var scene = EditorSceneManager.GetActiveScene();
@@ -39,7 +39,7 @@ namespace Wagenheimer.UnityUtils.Editor
             EditorUtility.DisplayDialog("Remove Unused IAPButton Components", message, "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Unused IAPButton Components (All Scenes && Prefabs)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Unused IAPButton Components (All Scenes && Prefabs)")]
         public static void RunOnProject()
         {
             if (!EditorUtility.DisplayDialog("Remove Unused IAPButton Components",
@@ -172,3 +172,4 @@ namespace Wagenheimer.UnityUtils.Editor
     }
 }
 #endif
+

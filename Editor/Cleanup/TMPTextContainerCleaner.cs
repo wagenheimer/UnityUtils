@@ -14,7 +14,7 @@ namespace Wagenheimer.UnityUtils.Editor
     /// </summary>
     public static class TMPTextContainerCleaner
     {
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Obsolete TMP TextContainer (Active Scene Only)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Obsolete TMP TextContainer (Active Scene Only)")]
         public static void RunOnActiveScene()
         {
             var scene = EditorSceneManager.GetActiveScene();
@@ -31,7 +31,7 @@ namespace Wagenheimer.UnityUtils.Editor
             EditorUtility.DisplayDialog("Remove Obsolete TMP TextContainer", message, "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Cleanup/Remove Obsolete TMP TextContainer (All Scenes && Prefabs)")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Obsolete TMP TextContainer (All Scenes && Prefabs)")]
         public static void RunOnProject()
         {
             if (!EditorUtility.DisplayDialog("Remove Obsolete TMP TextContainer",
@@ -154,3 +154,4 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+

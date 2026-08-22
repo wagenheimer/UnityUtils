@@ -16,7 +16,7 @@ namespace Wagenheimer.UnityUtils.Editor
     {
         private const string DefaultSettingsPath = "Assets/Resources/Wagenheimer/BootstrapSettings.asset";
 
-        [MenuItem("Tools/Unity Utils/Bootstrap/1. Create Settings Asset")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/1. Create Settings Asset")]
         private static void CreateSettingsAsset()
         {
             var existing = FindSettings();
@@ -44,7 +44,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Bootstrap/2. Create-Rebuild Bootstrap Scene")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/2. Create-Rebuild Bootstrap Scene")]
         private static void CreateOrRebuildBootstrapScene()
         {
             var settings = RequireSettings();
@@ -89,7 +89,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Bootstrap/3. Remove Persistent Prefabs From Active Scene")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/3. Remove Persistent Prefabs From Active Scene")]
         private static void RemoveFromActiveScene()
         {
             var settings = RequireSettings();
@@ -123,7 +123,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 "OK");
         }
 
-        [MenuItem("Tools/Unity Utils/Bootstrap/4. Remove Persistent Prefabs From Other Scenes")]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/4. Remove Persistent Prefabs From Other Scenes")]
         private static void RemoveFromOtherScenes()
         {
             var settings = RequireSettings();
@@ -284,3 +284,4 @@ namespace Wagenheimer.UnityUtils.Editor
         }
     }
 }
+
