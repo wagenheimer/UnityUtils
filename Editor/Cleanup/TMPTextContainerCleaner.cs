@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEditor;
@@ -14,7 +15,24 @@ namespace Wagenheimer.UnityUtils.Editor
     /// </summary>
     public static class TMPTextContainerCleaner
     {
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Obsolete TMP TextContainer (Active Scene Only)")]
+        public struct ScanResult
+        {
+            public int ObsoleteContainerCount;
+            public int AffectedScenesCount;
+            public int AffectedPrefabsCount;
+            public List<string> Details;
+        }
+
+        public struct CleanResult
+        {
+            public int ObjectsFixed;
+            public int ScenesChanged;
+            public int PrefabsChanged;
+        }
+
+        #region Menu Items
+
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/TextMesh Pro/Remove Obsolete TMP TextContainer (Active Scene Only)", priority = 52)]
         public static void RunOnActiveScene()
         {
             var scene = EditorSceneManager.GetActiveScene();
@@ -31,21 +49,85 @@ namespace Wagenheimer.UnityUtils.Editor
             EditorUtility.DisplayDialog("Remove Obsolete TMP TextContainer", message, "OK");
         }
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Remove Obsolete TMP TextContainer (All Scenes && Prefabs)")]
-        public static void RunOnProject()
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/TextMesh Pro/Remove Obsolete TMP TextContainer (All Scenes && Prefabs)", priority = 53)]
+        public static void RunOnProjectMenuItem()
         {
             if (!EditorUtility.DisplayDialog("Remove Obsolete TMP TextContainer",
                     "This opens every scene and prefab in the project, removes any obsolete " +
                     "TMPro.TextContainer component it finds, and saves anything that changed.\n\n" +
-                    "Make sure your work is saved/committed first — this can't be undone with " +
-                    "Ctrl+Z once a scene or prefab is saved.",
+                    "Make sure your work is saved/committed first.",
                     "Proceed", "Cancel"))
                 return;
 
-            int objectsFixed = 0;
-            int scenesChanged = 0;
-            int prefabsChanged = 0;
+            var result = CleanAll();
+            var message = $"Removed {result.ObjectsFixed} obsolete TextContainer(s) — {result.ScenesChanged} scene(s), {result.PrefabsChanged} prefab(s) changed.";
+            Debug.Log($"[TMPTextContainerCleaner] {message}");
+            EditorUtility.DisplayDialog("Remove Obsolete TMP TextContainer", message, "OK");
+        }
 
+        #endregion
+
+        #region Scan & Clean Logic
+
+        public static ScanResult ScanProject()
+        {
+            var scan = new ScanResult
+            {
+                Details = new List<string>()
+            };
+
+            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
+            try
+            {
+                var scenePaths = AssetDatabase.FindAssets("t:Scene")
+                    .Select(AssetDatabase.GUIDToAssetPath)
+                    .Distinct()
+                    .OrderBy(p => p)
+                    .ToArray();
+
+                for (int i = 0; i < scenePaths.Length; i++)
+                {
+                    var path = scenePaths[i];
+                    var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+                    var count = CountInCurrentScene();
+                    if (count > 0)
+                    {
+                        scan.ObsoleteContainerCount += count;
+                        scan.AffectedScenesCount++;
+                        scan.Details.Add($"[Scene] {path}: {count} obsolete TextContainer(s)");
+                    }
+                }
+
+                var prefabPaths = AssetDatabase.FindAssets("t:Prefab")
+                    .Select(AssetDatabase.GUIDToAssetPath)
+                    .Distinct()
+                    .OrderBy(p => p)
+                    .ToArray();
+
+                for (int i = 0; i < prefabPaths.Length; i++)
+                {
+                    var path = prefabPaths[i];
+                    var count = CountInPrefab(path);
+                    if (count > 0)
+                    {
+                        scan.ObsoleteContainerCount += count;
+                        scan.AffectedPrefabsCount++;
+                        scan.Details.Add($"[Prefab] {path}: {count} obsolete TextContainer(s)");
+                    }
+                }
+            }
+            finally
+            {
+                if (originalSetup != null && originalSetup.Length > 0)
+                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
+            }
+
+            return scan;
+        }
+
+        public static CleanResult CleanAll()
+        {
+            var result = new CleanResult();
             var originalSetup = EditorSceneManager.GetSceneManagerSetup();
 
             try
@@ -72,8 +154,8 @@ namespace Wagenheimer.UnityUtils.Editor
                     var fixedInScene = FixInCurrentScene();
                     if (fixedInScene > 0)
                     {
-                        objectsFixed += fixedInScene;
-                        scenesChanged++;
+                        result.ObjectsFixed += fixedInScene;
+                        result.ScenesChanged++;
                         EditorSceneManager.MarkSceneDirty(scene);
                         EditorSceneManager.SaveScene(scene);
                     }
@@ -100,29 +182,54 @@ namespace Wagenheimer.UnityUtils.Editor
                     var fixedInPrefab = FixInPrefab(path);
                     if (fixedInPrefab > 0)
                     {
-                        objectsFixed += fixedInPrefab;
-                        prefabsChanged++;
+                        result.ObjectsFixed += fixedInPrefab;
+                        result.PrefabsChanged++;
                     }
                 }
             }
             finally
             {
                 EditorUtility.ClearProgressBar();
-                if (originalSetup is { Length: > 0 })
+                if (originalSetup != null && originalSetup.Length > 0)
                     EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
             }
 
-            var message = $"Removed {objectsFixed} obsolete TextContainer(s) — {scenesChanged} scene(s), {prefabsChanged} prefab(s) changed.";
-            Debug.Log($"[TMPTextContainerCleaner] {message}");
-            EditorUtility.DisplayDialog("Remove Obsolete TMP TextContainer", message, "OK");
+            return result;
         }
 
         private static int FixInCurrentScene()
         {
             int fixedCount = 0;
-            foreach (var container in Object.FindObjectsOfType<TextContainer>(true))
+#if UNITY_2023_1_OR_NEWER
+            var containers = Object.FindObjectsByType<TextContainer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+#else
+            var containers = Object.FindObjectsOfType<TextContainer>(true);
+#endif
+            foreach (var container in containers)
                 fixedCount += RemoveContainer(container);
             return fixedCount;
+        }
+
+        private static int CountInCurrentScene()
+        {
+#if UNITY_2023_1_OR_NEWER
+            return Object.FindObjectsByType<TextContainer>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length;
+#else
+            return Object.FindObjectsOfType<TextContainer>(true).Length;
+#endif
+        }
+
+        private static int CountInPrefab(string prefabPath)
+        {
+            var root = PrefabUtility.LoadPrefabContents(prefabPath);
+            try
+            {
+                return root.GetComponentsInChildren<TextContainer>(true).Length;
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
         }
 
         private static int FixInPrefab(string prefabPath)
@@ -152,6 +259,7 @@ namespace Wagenheimer.UnityUtils.Editor
             Object.DestroyImmediate(container, true);
             return 1;
         }
+
+        #endregion
     }
 }
-
