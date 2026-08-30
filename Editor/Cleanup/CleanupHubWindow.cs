@@ -1,7 +1,6 @@
 // Unity Editor window that aggregates all cleanup tools.
 // Path: k:/Games/Open Source/UnityUtils/Editor/Cleanup/CleanupHubWindow.cs
 
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -13,6 +12,15 @@ namespace Wagenheimer.UnityUtils.Editor
     {
         private Vector2 _scrollPos;
         private string _statusMessage = string.Empty;
+
+        // Foldout state per section.
+        private bool _foldoutAudioListeners = true;
+        private bool _foldoutMissingScripts = true;
+        private bool _foldoutLegacyComponents = true;
+        private bool _foldoutAnimatorTransitions = true;
+        private bool _foldoutTMPCanvasRenderer = true;
+        private bool _foldoutTMPTextContainer = true;
+        private bool _foldoutUnusedIAPButtons = true;
 
         [MenuItem("Tools/Wagenheimer/Unity Utils/Project Cleanup Hub...", priority = 0)]
         public static void ShowWindow()
@@ -27,13 +35,13 @@ namespace Wagenheimer.UnityUtils.Editor
             GUILayout.Space(8);
             _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
 
-            DrawSection("Audio Listeners", DrawAudioListenerSection);
-            DrawSection("Missing Scripts", DrawMissingScriptsSection);
-            DrawSection("Legacy Components", DrawLegacyComponentsSection);
-            DrawSection("Animator Transitions", DrawAnimatorTransitionsSection);
-            DrawSection("TMP CanvasRenderer", DrawTMPCanvasRendererSection);
-            DrawSection("TMP TextContainer", DrawTMPTextContainerSection);
-            DrawSection("Unused IAP Buttons", DrawUnusedIAPButtonSection);
+            DrawSection("Audio Listeners", ref _foldoutAudioListeners, DrawAudioListenerSection);
+            DrawSection("Missing Scripts", ref _foldoutMissingScripts, DrawMissingScriptsSection);
+            DrawSection("Legacy Components", ref _foldoutLegacyComponents, DrawLegacyComponentsSection);
+            DrawSection("Animator Transitions", ref _foldoutAnimatorTransitions, DrawAnimatorTransitionsSection);
+            DrawSection("TMP CanvasRenderer", ref _foldoutTMPCanvasRenderer, DrawTMPCanvasRendererSection);
+            DrawSection("TMP TextContainer", ref _foldoutTMPTextContainer, DrawTMPTextContainerSection);
+            DrawSection("Unused IAP Buttons", ref _foldoutUnusedIAPButtons, DrawUnusedIAPButtonSection);
 
             EditorGUILayout.EndScrollView();
 
@@ -43,11 +51,14 @@ namespace Wagenheimer.UnityUtils.Editor
             }
         }
 
-        private void DrawSection(string title, System.Action drawContent)
+        private void DrawSection(string title, ref bool foldout, System.Action drawContent)
         {
             EditorGUILayout.BeginVertical("box");
-            EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
-            drawContent?.Invoke();
+            foldout = EditorGUILayout.Foldout(foldout, title, true, EditorStyles.boldLabel);
+            if (foldout)
+            {
+                drawContent?.Invoke();
+            }
             EditorGUILayout.EndVertical();
             GUILayout.Space(6);
         }
@@ -150,24 +161,16 @@ namespace Wagenheimer.UnityUtils.Editor
         #region TMP TextContainer
         private void DrawTMPTextContainerSection()
         {
-            // Assuming TMPTextContainerCleaner exists with similar API.
-            var type = typeof(TMPTextContainerCleaner);
-            var scanMethod = type.GetMethod("ScanProject");
-            var cleanMethod = type.GetMethod("CleanAll");
             if (GUILayout.Button("Scan Project"))
             {
-                var scan = scanMethod.Invoke(null, null);
-                var field = scan.GetType().GetField("RedundantRendererCount");
-                _statusMessage = $"TMP TextContainer – Redundant: {field.GetValue(scan)}";
+                var scan = TMPTextContainerCleaner.ScanProject();
+                _statusMessage = $"TMP TextContainer – Obsolete: {scan.ObsoleteContainerCount}, Scenes: {scan.AffectedScenesCount}, Prefabs: {scan.AffectedPrefabsCount}";
                 Debug.Log($"[CleanupHub] {_statusMessage}");
             }
             if (GUILayout.Button("Fix All (Scenes && Prefabs)"))
             {
-                var result = cleanMethod.Invoke(null, null);
-                var objs = result.GetType().GetField("ObjectsFixed").GetValue(result);
-                var scenes = result.GetType().GetField("ScenesChanged").GetValue(result);
-                var prefabs = result.GetType().GetField("PrefabsChanged").GetValue(result);
-                _statusMessage = $"Removed {objs} redundant TextContainer(s) – {scenes} scene(s), {prefabs} prefab(s).";
+                var result = TMPTextContainerCleaner.CleanAll();
+                _statusMessage = $"Removed {result.ObjectsFixed} obsolete TextContainer(s) – {result.ScenesChanged} scene(s), {result.PrefabsChanged} prefab(s).";
                 Debug.Log($"[CleanupHub] {_statusMessage}");
             }
         }
@@ -176,28 +179,25 @@ namespace Wagenheimer.UnityUtils.Editor
         #region Unused IAP Buttons
         private void DrawUnusedIAPButtonSection()
         {
-            // Assuming UnusedIAPButtonCleaner exists with ScanProject and CleanAll.
-            var type = typeof(UnusedIAPButtonCleaner);
-            var scanMethod = type.GetMethod("ScanProject");
-            var cleanMethod = type.GetMethod("CleanAll");
+#if !WAGENHEIMER_UNITYUTILS_IAP
+            EditorGUILayout.HelpBox(
+                "IAP support is not enabled in this project (define WAGENHEIMER_UNITYUTILS_IAP). " +
+                "Scan and fix actions are disabled.", MessageType.Warning);
+#else
             if (GUILayout.Button("Scan Project"))
             {
-                var scan = scanMethod?.Invoke(null, null);
-                var countField = scan?.GetType().GetField("UnusedButtonCount");
-                var count = countField?.GetValue(scan) ?? 0;
-                _statusMessage = $"Unused IAP Buttons – {count} found.";
+                var scan = UnusedIAPButtonCleaner.ScanProject();
+                _statusMessage = $"Unused IAP Buttons – Unused components: {scan.UnusedComponentCount}, Scenes: {scan.AffectedScenesCount}, Prefabs: {scan.AffectedPrefabsCount}";
                 Debug.Log($"[CleanupHub] {_statusMessage}");
             }
             if (GUILayout.Button("Fix All (Scenes && Prefabs)"))
             {
-                var result = cleanMethod?.Invoke(null, null);
-                var removedField = result?.GetType().GetField("ButtonsRemoved");
-                var removed = removedField?.GetValue(result) ?? 0;
-                _statusMessage = $"Removed {removed} unused IAP Button(s).";
+                var result = UnusedIAPButtonCleaner.CleanAll();
+                _statusMessage = $"Removed {result.ObjectsFixed} unused IAP component(s) – {result.ScenesChanged} scene(s), {result.PrefabsChanged} prefab(s).";
                 Debug.Log($"[CleanupHub] {_statusMessage}");
             }
+#endif
         }
         #endregion
     }
 }
-
