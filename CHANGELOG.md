@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.1.4] - 2026-08-30
+
+### Fixed
+- add missing .meta files for Cleanup scripts and Runtime/Audio
+
 ## [1.1.3] - 2026-08-30
 
 ## [1.1.2] - 2026-08-30
