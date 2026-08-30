@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.1.2] - 2026-08-30
+
+### Changed
+- Add Project Cleanup Hub window and aggregate cleanup tools
+
 ## [1.1.1] - 2026-08-22
 
 ### Fixed
