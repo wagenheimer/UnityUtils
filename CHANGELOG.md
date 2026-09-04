@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.2.1] - 2026-09-04
+
+### Fixed
+- nullable bool compile errors in AabSizeWarningTool
+
 ## [1.2.0] - 2026-09-04
 
 ### Added
