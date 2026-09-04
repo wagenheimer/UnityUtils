@@ -21,6 +21,9 @@ Small, independent Unity Editor utilities, installable via Unity Package Manager
   IAPButton components with nothing wired to them still trigger Codeless IAP's automatic store
   connection on startup, which otherwise spams `"IStoreService.Connect called without a callback
   defined..."` warnings for projects that drive purchases through `UnityIAPServices` directly.
+- **App Bundle Size Warning Tool** — toggles Unity's built-in "Warn about App Bundle size" check
+  (`Player Settings > Other Settings`) from a menu item, so projects whose .aab always exceeds
+  the Google Play threshold can silence the warning shown after every Android build.
 
 Each tool is standalone — use one, some, or all of them.
 
@@ -140,6 +143,33 @@ removes any `IAPButton` whose `onPurchaseComplete`/`onPurchaseFailed`/`onTransac
 UnityEvents are all empty — i.e. doing nothing. Any IAPButton with real listeners wired is left
 untouched (and logged), so this is safe to run even if some buttons in your project genuinely use
 Codeless IAP.
+
+## App Bundle Size Warning Tool
+
+`Tools > Wagenheimer > Unity Utils > Android > App Bundle Size Warning`
+
+Toggles Unity's built-in **"Warn about App Bundle size"** check (`Player Settings > Other Settings
+> Build > Warn about App Bundle size`, threshold 200 MB by default). After every release AAB build,
+Unity checks the bundle's estimated download size and warns when it exceeds the Google Play limit —
+useful once, annoying forever for games that always exceed it.
+
+- **Toggle** — checked menu item; the checkmark reflects the current Player Settings state.
+- **Enable** / **Disable** — explicit, with a confirmation log.
+- **Log Status** — prints the current state and threshold to the Console.
+
+The state is stored in the project itself (`AndroidValidateAppBundleSize` in
+`ProjectSettings.asset`), so it is committed with the project like any other Player Setting and
+both paths — the undocumented `validateAppBundleSize`/`appBundleSizeToValidate` PlayerSettings
+properties and a direct `ProjectSettings.asset` fallback — produce the same result.
+
+Build scripts can call it automatically before `BuildPipeline.BuildPlayer`:
+
+```csharp
+Wagenheimer.UnityUtils.Editor.AabSizeWarningTool.SetEnabled(false);
+```
+
+`SetEnabled` is a silent no-op when the state already matches, so calling it on every Android
+build is free.
 
 ## Versioning & Releases
 
