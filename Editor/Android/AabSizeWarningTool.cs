@@ -40,7 +40,7 @@ namespace Wagenheimer.UnityUtils.Editor
         [MenuItem(MenuRoot + "Toggle", priority = 12)]
         public static void Toggle()
         {
-            SetEnabled(!IsEnabled(), notify: true);
+            SetEnabled(!(IsEnabled() ?? true), notify: true);
         }
 
         [MenuItem(MenuRoot + "Toggle", validate = true, priority = 12)]
@@ -54,7 +54,7 @@ namespace Wagenheimer.UnityUtils.Editor
         public static void LogStatus()
         {
             var threshold = GetThreshold();
-            Debug.Log($"[AabSizeWarningTool] Warn about App Bundle size: {(IsEnabled() ? "ENABLED" : "DISABLED")}"
+            Debug.Log($"[AabSizeWarningTool] Warn about App Bundle size: {(IsEnabled() ?? true ? "ENABLED" : "DISABLED")}"
                       + (threshold.HasValue ? $" (threshold: {threshold.Value} MB)" : ""));
         }
 
@@ -97,8 +97,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 try { return (bool)prop.GetValue(null); } catch { }
             }
 
-            return ReadSerializedValue(SerializedEnabledKey) == 1 ? true
-                 : ReadSerializedValue(SerializedEnabledKey) == 0 ? false : (bool?)null;
+            var serialized = ReadSerializedValue(SerializedEnabledKey);
+            return serialized.HasValue ? serialized.Value != 0 : (bool?)null;
         }
 
         public static int? GetThreshold()
