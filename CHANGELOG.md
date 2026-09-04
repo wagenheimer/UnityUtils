@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.2.0] - 2026-09-04
+
+### Added
+- add App Bundle Size Warning tool to toggle Unity's AAB size check
+
 ## [1.1.4] - 2026-08-30
 
 ### Fixed
