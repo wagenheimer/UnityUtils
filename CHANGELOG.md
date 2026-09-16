@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.3.0] - 2026-09-16
+
+### Added
+- add CLZF2 LZF compressor utility to runtime
+
 ## [1.2.1] - 2026-09-04
 
 ### Fixed
