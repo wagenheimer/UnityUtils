@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.4.0] - 2026-09-17
+
+### Added
+- add shared runtime UnityExtensions (vector/list/particle/alpha/time helpers) and reference TextMeshPro
+
 ## [1.3.0] - 2026-09-16
 
 ### Added
