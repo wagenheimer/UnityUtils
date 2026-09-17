@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.4.1] - 2026-09-17
+
+### Fixed
+- add the missing meta file for CLZF2
+
 ## [1.4.0] - 2026-09-17
 
 ### Added
