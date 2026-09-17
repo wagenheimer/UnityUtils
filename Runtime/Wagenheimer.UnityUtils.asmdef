@@ -1,7 +1,9 @@
 {
     "name": "Wagenheimer.UnityUtils",
     "rootNamespace": "Wagenheimer.UnityUtils",
-    "references": [],
+    "references": [
+        "Unity.TextMeshPro"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
