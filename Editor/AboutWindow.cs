@@ -22,7 +22,7 @@ namespace Wagenheimer.UnityUtils.Editor
         bool _stylesBuilt;
         GUIStyle _titleStyle, _subtitleStyle, _sectionStyle;
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/About Unity Utils...", priority = 140)]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/About Unity Utils...", priority = 158)]
         static void ShowAbout() => GetWindow<AboutWindow>(true, "About Unity Utils", true);
 
         private void OnEnable()
