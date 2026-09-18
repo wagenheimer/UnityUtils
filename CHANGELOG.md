@@ -2,6 +2,8 @@ name: UnityUtils
 
 # Changelog
 
+## [1.6.0] - 2026-09-18
+
 ## [1.5.1] - 2026-09-18
 
 ### Changed
