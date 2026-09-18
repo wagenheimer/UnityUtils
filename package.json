@@ -1,6 +1,6 @@
 {
   "name": "com.wagenheimer.unityutils",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "displayName": "Unity Utils",
   "description": "Small, independent Unity Editor utilities: a bootstrap-scene kit that additively loads persistent singletons (audio manager, music, game manager, ...) before any other scene, and cleanup tools for duplicate AudioListeners and stranded TextMeshPro CanvasRenderer components.",
   "unity": "2021.3",
@@ -18,6 +18,7 @@
   ],
   "category": "Tools",
   "dependencies": {
-    "com.unity.textmeshpro": "3.0.6"
+    "com.unity.textmeshpro": "3.0.6",
+    "com.wagenheimer.packagehub": "https://github.com/wagenheimer/UnityPackageHub.git#v1.0.0"
   }
 }

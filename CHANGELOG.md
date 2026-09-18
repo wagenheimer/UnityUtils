@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.4.2] - 2026-09-18
+
+### Changed
+- **Centralized Update Management**: Replaced standalone update checker with dependency on `com.wagenheimer.packagehub` (`UnityPackageHub`). Updates, changelogs, and package management are now handled centrally through the unified Wagenheimer Package Hub.
+
 ## [1.4.1] - 2026-09-17
 
 ### Fixed
