@@ -2,6 +2,12 @@ name: UnityUtils
 
 # Changelog
 
+## [1.4.3] - 2026-09-18
+
+### Changed
+- Standardized menu item priorities under `Tools > Wagenheimer > Unity Utils` (base priority 150) for cohesive editor grouping and ordering.
+- Updated `com.wagenheimer.packagehub` dependency to `v1.0.4`.
+
 ## [1.4.2] - 2026-09-18
 
 ### Changed
