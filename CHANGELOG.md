@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.6.1] - 2026-09-18
+
+### Fixed
+- Removed `com.wagenheimer.packagehub` from `dependencies` in package.json: UPM does not support a git URL as a dependency version, which made this package fail to resolve/update in any consuming project. PackageHub must still be added directly to the consumer's manifest.json.
+
 ## [1.6.0] - 2026-09-18
 
 ## [1.5.1] - 2026-09-18
