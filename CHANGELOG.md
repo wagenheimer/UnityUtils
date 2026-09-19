@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.6.2] - 2026-09-19
+
+### Changed
+- Re-added `com.wagenheimer.packagehub` as a proper semver dependency (`1.0.4`) now that it is published on the [OpenUPM registry](https://openupm.com/packages/com.wagenheimer.packagehub/). Consumers need the `com.wagenheimer` scope added to their `scopedRegistries`.
+
 ## [1.6.1] - 2026-09-18
 
 ### Fixed
