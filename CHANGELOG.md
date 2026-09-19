@@ -2,6 +2,14 @@ name: UnityUtils
 
 # Changelog
 
+## [1.7.0] - 2026-09-19
+
+### Added
+- Auto-installs `com.wagenheimer.packagehub` via git if missing, using a zero-dependency Editor bootstrap assembly (`PackageHubBootstrap`). Installing this package now pulls in PackageHub automatically, with no manual manifest edits or scoped registry required.
+
+### Changed
+- Reverted the `com.wagenheimer.packagehub` OpenUPM registry dependency added in 1.6.2: it required every consumer to configure a scoped registry manually, which defeats the "install one package, get everything" goal. The git-based auto-bootstrap replaces it.
+
 ## [1.6.2] - 2026-09-19
 
 ### Changed
