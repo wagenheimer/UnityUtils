@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.8.1] - 2026-09-21
+
+### Changed
+- chore(deps): bump PackageHub bootstrap to v1.0.5
+
 ## [1.8.0] - 2026-09-19
 
 ## [1.7.0] - 2026-09-19
