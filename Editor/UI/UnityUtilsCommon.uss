@@ -1,0 +1,352 @@
+/* =========================================================================
+ * UnityUtils - Modern Dark Design System Stylesheet
+ * Compatible with Unity 2021.3+ UI Toolkit
+ * ========================================================================= */
+
+:root {
+    --bg-primary: #1E1E22;
+    --bg-secondary: #26262B;
+    --bg-card: #2B2B31;
+    --bg-card-hover: #32323A;
+    --bg-input: #1A1A1E;
+    --border-color: #383842;
+    --border-focus: #6366F1;
+    --text-primary: #F3F4F6;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    --accent-primary: #6366F1;
+    --accent-hover: #4F46E5;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+    --color-info: #3B82F6;
+}
+
+.root-container {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 14px;
+    flex-grow: 1;
+}
+
+/* ---------------- HEADER BANNER ---------------- */
+.header-banner {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-left-width: 4px;
+    border-left-color: var(--accent-primary);
+}
+
+.header-title-group {
+    flex-direction: column;
+}
+
+.header-title {
+    font-size: 19px;
+    -unity-font-style: bold;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.header-subtitle {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.header-badge-group {
+    flex-direction: row;
+    align-items: center;
+}
+
+.version-badge {
+    background-color: rgba(99, 102, 241, 0.18);
+    border-color: var(--accent-primary);
+    border-width: 1px;
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 11px;
+    -unity-font-style: bold;
+    color: #A5B4FC;
+}
+
+/* ---------------- TABS TOOLBAR ---------------- */
+.tab-toolbar {
+    flex-direction: row;
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 12px;
+}
+
+.tab-button {
+    flex-grow: 1;
+    border-width: 0;
+    border-radius: 6px;
+    background-color: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    -unity-font-style: bold;
+    padding: 8px 12px;
+    margin: 0 2px;
+    transition-duration: 0.15s;
+    transition-property: background-color, color;
+}
+
+.tab-button:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.tab-button-active {
+    background-color: var(--accent-primary);
+    color: #FFFFFF;
+}
+
+.tab-button-active:hover {
+    background-color: var(--accent-hover);
+    color: #FFFFFF;
+}
+
+/* ---------------- CONTENT AREA ---------------- */
+.tab-content {
+    flex-grow: 1;
+}
+
+/* ---------------- CARDS ---------------- */
+.card {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+}
+
+.card:hover {
+    border-color: #4A4A58;
+}
+
+.card-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.card-title {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: var(--text-primary);
+}
+
+.card-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.card-body {
+    flex-direction: column;
+}
+
+/* ---------------- METRICS BAR ---------------- */
+.metrics-row {
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.metric-card {
+    flex-grow: 1;
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 10px;
+    margin: 0 4px;
+    align-items: center;
+}
+
+.metric-value {
+    font-size: 20px;
+    -unity-font-style: bold;
+    color: var(--text-primary);
+}
+
+.metric-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ---------------- BADGES ---------------- */
+.badge {
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    border-width: 1px;
+    align-self: center;
+}
+
+.badge-pass {
+    background-color: rgba(16, 185, 129, 0.15);
+    border-color: var(--color-success);
+    color: #6EE7B7;
+}
+
+.badge-warning {
+    background-color: rgba(245, 158, 11, 0.15);
+    border-color: var(--color-warning);
+    color: #FCD34D;
+}
+
+.badge-error {
+    background-color: rgba(239, 68, 68, 0.15);
+    border-color: var(--color-error);
+    color: #FCA5A5;
+}
+
+.badge-info {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-color: var(--color-info);
+    color: #93C5FD;
+}
+
+/* ---------------- BUTTONS ---------------- */
+.btn {
+    border-radius: 5px;
+    padding: 6px 12px;
+    font-size: 11px;
+    -unity-font-style: bold;
+    border-width: 1px;
+    cursor: link;
+    transition-duration: 0.12s;
+}
+
+.btn-primary {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-hover);
+    color: #FFFFFF;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+}
+
+.btn-secondary {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-card-hover);
+    border-color: #555562;
+}
+
+.btn-danger {
+    background-color: rgba(239, 68, 68, 0.18);
+    border-color: var(--color-error);
+    color: #FCA5A5;
+}
+
+.btn-danger:hover {
+    background-color: rgba(239, 68, 68, 0.35);
+}
+
+.btn-success {
+    background-color: rgba(16, 185, 129, 0.2);
+    border-color: var(--color-success);
+    color: #A7F3D0;
+}
+
+.btn-success:hover {
+    background-color: rgba(16, 185, 129, 0.35);
+}
+
+/* ---------------- DIAGNOSTIC ROWS ---------------- */
+.diag-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.04);
+}
+
+.diag-row:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.diag-info {
+    flex-direction: column;
+    flex-grow: 1;
+    margin-right: 12px;
+}
+
+.diag-title {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: var(--text-primary);
+}
+
+.diag-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    white-space: normal;
+}
+
+.diag-actions {
+    flex-direction: row;
+    align-items: center;
+}
+
+/* ---------------- ACTIONS TOOLBAR ---------------- */
+.action-toolbar {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.05);
+}
+
+.action-toolbar > Button {
+    margin-left: 6px;
+}
+
+/* ---------------- STATUS BOX ---------------- */
+.status-box {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: normal;
+}
+
+.ops-btn {
+    margin-top: 3px;
+    margin-bottom: 3px;
+    margin-left: 3px;
+    margin-right: 3px;
+}
+

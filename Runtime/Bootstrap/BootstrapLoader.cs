@@ -11,11 +11,13 @@ namespace Wagenheimer.UnityUtils
     public static class BootstrapLoader
     {
         private const string SettingsResourcePath = "Wagenheimer/BootstrapSettings";
+        private const string FallbackSettingsResourcePath = "BootstrapSettings";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void EnsureBootstrapLoaded()
         {
-            var settings = Resources.Load<BootstrapSettings>(SettingsResourcePath);
+            var settings = Resources.Load<BootstrapSettings>(SettingsResourcePath)
+                        ?? Resources.Load<BootstrapSettings>(FallbackSettingsResourcePath);
             if (settings == null || string.IsNullOrEmpty(settings.BootstrapSceneName))
                 return;
 

@@ -1,209 +1,177 @@
 # Unity Utils
 
-Small, independent Unity Editor utilities, installable via Unity Package Manager:
+A collection of lightweight, high-productivity Unity Editor and runtime utilities designed to streamline game initialization, prevent multi-scene singleton conflicts, and optimize project cleanliness.
 
-- **Bootstrap Scene Kit** — additively loads a scene of persistent singletons (audio manager,
-  music player, game manager, ...) before any other scene's `Awake` runs, regardless of which
-  scene Play (or the build) actually starts from. Removes the need to duplicate those objects in
-  every scene "just in case." Now also handles being played *from* the bootstrap scene itself.
-- **Update Checker** — automatic, zero-config update notification for projects using the package,
-  just like [Rewired Helper](https://github.com/wagenheimer/RewiredHelper) has.
-- **Audio Listener Cleaner** — removes duplicate `AudioListener`s across every scene in the
-  project, keeping the one on your designated persistent object.
-- **TMP CanvasRenderer Cleaner** — removes stray `CanvasRenderer` components sitting next to
-  world-space `TextMeshPro` objects (the `CanvasRenderer` is only needed by the UGUI variant),
-  which otherwise spam `"Please remove the CanvasRenderer component..."` warnings.
-- **TMP TextContainer Cleaner** — removes the obsolete `TMPro.TextContainer` component left over
-  on `TextMeshPro` objects from older TMP versions, which otherwise spam `"The Text Container
-  component is now Obsolete and can safely be removed..."` warnings.
-- **Unused IAPButton Cleaner** *(only active if `com.unity.purchasing` is installed)* — removes
-  Codeless `IAPButton` components whose purchase/failure/restore events are all empty. Leftover
-  IAPButton components with nothing wired to them still trigger Codeless IAP's automatic store
-  connection on startup, which otherwise spams `"IStoreService.Connect called without a callback
-  defined..."` warnings for projects that drive purchases through `UnityIAPServices` directly.
-- **App Bundle Size Warning Tool** — toggles Unity's built-in "Warn about App Bundle size" check
-  (`Player Settings > Other Settings`) from a menu item, so projects whose .aab always exceeds
-  the Google Play threshold can silence the warning shown after every Android build.
+Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic Checker** with one-click fixes, a comprehensive **Project Cleanup Suite**, and **Android App Bundle** optimization utilities.
 
-Each tool is standalone — use one, some, or all of them.
+---
+
+## Key Features
+
+- **Modern UI Toolkit Dashboard (`UnityUtilsHubWindow`)**:
+  - Centralized, high-performance editor hub replacing legacy IMGUI windows.
+  - Dark-slate design system with real-time metric cards, responsive status badges, and tabbed workflow.
+- **Bootstrap Scene Kit & Diagnostic Checker**:
+  - Additively loads persistent singletons (`AudioManager`, `GameManager`, UI canvases, etc.) before any other scene's `Awake` runs.
+  - Automatically handles playing directly from the bootstrap scene in Editor Play Mode by loading the first Build Settings scene additively.
+  - **Diagnostic Checker (`BootstrapChecker`)**: Audits settings asset placement, scene presence on disk, build index 0 configuration, and detects leaking prefabs in gameplay scenes with **One-Click Quick Fixes**.
+- **Project Cleanup Suite**:
+  - **Audio Listener Cleaner**: Removes duplicate `AudioListener` components across scenes and prefabs, enforcing a single persistent listener.
+  - **Missing Script Cleaner**: Detects and strips missing MonoBehaviour script references across all scenes and prefabs.
+  - **TextMesh Pro CanvasRenderer Cleaner**: Strips redundant `CanvasRenderer` components attached to world-space `TextMeshPro` objects.
+  - **TextMesh Pro TextContainer Cleaner**: Removes obsolete `TMPro.TextContainer` components left over from legacy TMP packages.
+  - **Animator Transition Auditor**: Audits and auto-repairs invalid animator state transitions missing exit times or conditions.
+  - **Legacy Component Modernizer**: Re-serializes scenes and prefabs using the active Unity engine format.
+  - **Unused Codeless IAP Button Cleaner**: Strips empty, disconnected `IAPButton` components (active when `com.unity.purchasing` is installed).
+- **Android App Bundle Size Warning Tool**:
+  - Inspects and toggles Unity's built-in 200 MB App Bundle size validation warning (`Player Settings > Other Settings > Warn about App Bundle size`) directly from menus or automated CI build scripts.
+- **Runtime Optimization Helpers**:
+  - `SingleAudioListener`: Enforces a single active AudioListener at runtime across additively loaded scenes.
+  - `CLZF2`: Zero-dependency, high-speed LZF byte compression and decompression routines.
+
+---
 
 ## Installation
 
-Via Unity Package Manager, using the git URL:
+### Via Unity Package Manager (Git URL)
+
+1. Open Unity and navigate to **Window > Package Manager**.
+2. Click the **+** button in the top-left and select **Add package from git URL...**.
+3. Enter:
+   ```
+   https://github.com/wagenheimer/UnityUtils.git
+   ```
+4. To target a specific version tag, append `#vX.Y.Z` (e.g., `#v1.9.0`).
+
+### Package Hub Integration
+
+UnityUtils integrates directly with [UnityPackageHub](https://github.com/wagenheimer/UnityPackageHub). You can check for updates anytime via:
+```
+Tools > Wagenheimer > Unity Utils > Check for Updates...
+```
+
+---
+
+## Dashboard Overview
+
+Open the central UI Toolkit dashboard via **`Tools > Wagenheimer > Unity Utils > Dashboard...`**.
+
+The dashboard is structured into four primary workspaces:
 
 ```
-https://github.com/wagenheimer/UnityUtils.git
+┌────────────────────────────────────────────────────────────────────────┐
+│  Unity Utils  v1.9.0                                                   │
+│  Bootstrap Scene Kit, Diagnostics & Optimization Suite                 │
+├────────────────────────────────────────────────────────────────────────┤
+│  [Bootstrap & Diagnostics]  [Project Cleanup]  [Android]  [About]      │
+├────────────────────────────────────────────────────────────────────────┤
+│  [ 8 Passed ]   [ 0 Warnings ]   [ 0 Errors ]                          │
+│                                                                        │
+│  Bootstrap Diagnostic Engine             [Run Full Scan]  [Fix All]   │
+│  ├─ BootstrapSettings Located                 [PASS]                   │
+│  ├─ Bootstrap Scene Found ('bootstrap')       [PASS]                   │
+│  ├─ Bootstrap Scene in Build Settings (#0)    [PASS]                   │
+│  └─ No Leaking Persistent Prefabs             [PASS]                   │
+│                                                                        │
+│  Bootstrap Scene Operations                                            │
+│  [Locate Settings]  [Rebuild Scene]  [Open Scene]  [Clean Leaks]       │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-`Window > Package Manager > + > Add package from git URL...` and paste the URL above. To pin a
-specific version, append `#vX.Y.Z` (see the repo's tags).
+### 1. Bootstrap & Diagnostics
+- **Automated Diagnostic Rules**:
+  - `BootstrapSettings Asset Location`: Verifies placement inside a `Resources` directory (`Assets/Resources/Wagenheimer/BootstrapSettings.asset` or `Assets/Resources/BootstrapSettings.asset`).
+  - `Scene File Verification`: Confirms the target scene file exists on disk.
+  - `Build Settings Validation`: Validates that the bootstrap scene is present, enabled, and assigned to **Build Index 0**.
+  - `Prefab References`: Checks for empty or null entries in the persistent prefabs array.
+  - `Scene Leak Detection`: Scans all gameplay scenes to find and strip accidental duplicates of persistent prefabs.
+- **One-Click Quick Fixes**:
+  - Instant creation of `BootstrapSettings.asset`.
+  - Automatic insertion and reordering of the bootstrap scene into `EditorBuildSettings`.
+  - Batch removal of lingering persistent prefabs across all other scenes.
 
-### Updating
+### 2. Project Cleanup Suite
+- **Full Project Audit**: Executes all diagnostic scanners with a single click, providing live counters for audio duplicates, missing scripts, and TMP redundancies.
+- **Dedicated Cleaner Modules**: Individual cards with granular actions for active scenes, all scenes, or project prefabs.
 
-The package ships with a built-in **Update Checker** (`Editor/UpdateChecker.cs`):
+### 3. Android & Tools
+- **App Bundle Size Warning**:
+  - View current state (`ENABLED` / `DISABLED`) and validation threshold (e.g. 200 MB).
+  - One-click toggling and scriptable API:
+    ```csharp
+    Wagenheimer.UnityUtils.Editor.AabSizeWarningTool.SetEnabled(false);
+    ```
+- **SingleAudioListener & CLZF2**: Documentation and direct links to runtime utilities.
 
-- On Editor startup it checks this repo's `package.json` (on `master`) **once every 24 hours**
-  and logs / prompts when the remote version is newer than the installed one.
-- You can force a check any time via **`Tools > Wagenheimer > Unity Utils > Check for Updates...`**.
+### 4. About & Updates
+- Installed version display, release notes, license, and direct update checks via `PackageHubWindow`.
 
-No configuration required. Checks are stored in `EditorPrefs` under
-`Wagenheimer.UnityUtils.UpdateChecker.*` and never block the Editor (5s network timeout).
+---
 
-> Versions are bumped **automatically by CI** on every push to `master` — see
-> [Versioning & Releases](#versioning--releases) below.
+## Menu Reference
 
-## Bootstrap Scene Kit
+All commands are grouped under **`Tools > Wagenheimer > Unity Utils`**:
 
-### Why
+| Menu Command | Shortcut / Priority | Description |
+|---|---|---|
+| **Dashboard...** | Priority 100 | Opens the unified UI Toolkit dashboard. |
+| **Bootstrap > Run Diagnostic Checker...** | Priority 120 | Opens the dashboard directly to the Bootstrap tab. |
+| **Bootstrap > Create Settings Asset** | Priority 121 | Creates a default `BootstrapSettings.asset` in `Resources/Wagenheimer/`. |
+| **Bootstrap > Create or Rebuild Bootstrap Scene** | Priority 122 | Generates/repopulates the bootstrap scene with configured persistent prefabs. |
+| **Bootstrap > Remove Persistent Prefabs from Other Scenes** | Priority 123 | Scans all non-bootstrap scenes and strips duplicated persistent singletons. |
+| **Bootstrap > Remove Persistent Prefabs from Active Scene** | Priority 124 | Strips persistent singletons from the currently open scene. |
+| **Cleanup > Open Project Cleanup...** | Priority 140 | Opens the Project Cleanup Suite in the dashboard. |
+| **Android > App Bundle Size Warning > Disable** | Priority 160 | Disables Unity's AAB size warning. |
+| **Android > App Bundle Size Warning > Enable** | Priority 161 | Enables Unity's AAB size warning. |
+| **Android > App Bundle Size Warning > Toggle** | Priority 162 | Toggles the AAB size warning state (shows checkmark). |
+| **Android > App Bundle Size Warning > Log Status** | Priority 163 | Prints current AAB threshold and status to the Console. |
+| **About Unity Utils...** | Priority 190 | Opens the About tab. |
+| **Check for Updates...** | Priority 200 | Opens PackageHub to check for new releases. |
 
-If your persistent objects are `DontDestroyOnLoad` singletons that self-destruct on duplicate
-(`if (instance != null) Destroy(gameObject); else { instance = this; DontDestroyOnLoad(gameObject); }`),
-having a copy of them placed directly in *every* scene technically still works — but every scene
-load pays the cost of instantiating and then immediately destroying full copies of those objects,
-and the brief window before dedup runs is a common source of "2 audio listeners in the scene" /
-"only one active EventSystem" style warnings. A single bootstrap scene removes the duplication
-entirely instead of just cleaning up after it.
+---
 
-### How it works
+## Runtime Usage
 
-`BootstrapLoader` uses `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]`
-— a plain static method Unity calls once at startup, before the very first scene's objects wake
-up, *regardless of which scene that is*. No scene reordering, no Editor-only "Play Mode Start
-Scene" tricks, no capturing "which scene did I have open" state: it works identically whether you
-press Play from any scene in the Editor or launch a real build, because the callback fires before
-*any* scene's `Awake`, full stop. It just additively loads your bootstrap scene alongside whatever
-scene was already starting.
+### Bootstrap Scene Kit (`BootstrapLoader`)
 
-Keeping the persistent objects in an actual **scene** (rather than e.g. spawning them from a
-ScriptableObject config) means you can keep adding more to it later — extra managers, whatever —
-just by opening the scene and dropping things into it like any other scene.
+`BootstrapLoader` uses Unity's `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]`. It requires zero code in your gameplay scenes:
+1. Create `BootstrapSettings` via `Tools > Wagenheimer > Unity Utils > Bootstrap > Create Settings Asset`.
+2. Assign your persistent prefabs (e.g. `AudioManager`, `GameManager`, `UIManager`).
+3. Click `Create or Rebuild Bootstrap Scene`.
+4. Run your game! Whenever any scene is played, the bootstrap scene is automatically loaded additively before any object awakens.
 
-#### Playing from the Bootstrap Scene
+### SingleAudioListener
 
-Since v1.1.0, pressing **Play while the bootstrap scene itself is open** no longer leaves you
-stuck in an empty persistent-objects scene. When that happens, `BootstrapLoader` detects it and
-additively loads the **first enabled scene in Build Settings**, then makes it the active scene —
-so you always boot into real gameplay while keeping the bootstrap (and its persistent objects)
-alive, exactly as in normal flow.
+Add `SingleAudioListener` to your persistent camera or audio manager GameObject:
+```csharp
+using Wagenheimer.UnityUtils;
 
-This only applies in the **Editor**: in a real build the entry point is whatever scene is first
-in Build Settings, so re-loading it would just duplicate it.
+// Automatically disables competing AudioListeners when new scenes load additively.
+```
 
-### Setup
-
-1. `Tools > Unity Utils > Bootstrap > 1. Create Settings Asset` — creates a `BootstrapSettings`
-   asset under `Assets/Resources/Wagenheimer/` (must stay under a `Resources` folder so
-   `BootstrapLoader` can find it at runtime).
-2. On the created asset, set **Bootstrap Scene Name** and drag your persistent prefabs into
-   **Persistent Prefabs**. Each should already be a self-persisting `DontDestroyOnLoad` singleton
-   as described above — this kit stops the duplication from happening per-scene, it doesn't add
-   the singleton behavior itself.
-3. `Tools > Unity Utils > Bootstrap > 2. Create/Rebuild Bootstrap Scene` — creates the scene,
-   instantiates the prefabs into it, and registers it in Build Settings (required for
-   `SceneManager.LoadScene` by name to work in a build). Re-run any time you change the prefab
-   list to rebuild it.
-4. `Tools > Unity Utils > Bootstrap > 3. Remove Persistent Prefabs From Other Scenes` — opens
-   every other scene in the project, removes any instance of those same prefabs, and saves
-   whatever changed.
-
-From then on, `BootstrapLoader` (a plain runtime static class — not attached to any scene) takes
-care of loading the bootstrap scene automatically.
-
-## Audio Listener Cleaner
-
-`Tools > Unity Utils > Cleanup > Remove Duplicate Audio Listeners (All Scenes)`
-
-Opens every scene, and where more than one `AudioListener` is present, keeps the one belonging to
-the first prefab in your `BootstrapSettings`' Persistent Prefabs list and removes the rest. If no
-`BootstrapSettings` asset exists, or that prefab isn't present in a given scene, falls back to
-keeping the first one found (logging a warning so you can double check).
-
-## TMP CanvasRenderer Cleaner
-
-`Tools > Unity Utils > Cleanup > Remove Redundant TMP CanvasRenderer (All Scenes && Prefabs)`
-
-Scans every scene and prefab in the project and removes any `CanvasRenderer` sitting on the same
-GameObject as a world-space `TextMeshPro` component. Fully generic — no project-specific paths.
-
-## TMP TextContainer Cleaner
-
-`Tools > Unity Utils > Cleanup > Remove Obsolete TMP TextContainer (All Scenes && Prefabs)`
-(and an `(Active Scene Only)` variant)
-
-Scans every scene and prefab in the project and removes any obsolete `TMPro.TextContainer`
-component it finds. Fully generic — no project-specific paths.
-
-## Unused IAPButton Cleaner
-
-`Tools > Unity Utils > Cleanup > Remove Unused IAPButton Components (All Scenes && Prefabs)`
-(and an `(Active Scene Only)` variant)
-
-Only compiled in when `com.unity.purchasing` is installed. Scans every scene and prefab, and
-removes any `IAPButton` whose `onPurchaseComplete`/`onPurchaseFailed`/`onTransactionsRestored`
-UnityEvents are all empty — i.e. doing nothing. Any IAPButton with real listeners wired is left
-untouched (and logged), so this is safe to run even if some buttons in your project genuinely use
-Codeless IAP.
-
-## App Bundle Size Warning Tool
-
-`Tools > Wagenheimer > Unity Utils > Android > App Bundle Size Warning`
-
-Toggles Unity's built-in **"Warn about App Bundle size"** check (`Player Settings > Other Settings
-> Build > Warn about App Bundle size`, threshold 200 MB by default). After every release AAB build,
-Unity checks the bundle's estimated download size and warns when it exceeds the Google Play limit —
-useful once, annoying forever for games that always exceed it.
-
-- **Toggle** — checked menu item; the checkmark reflects the current Player Settings state.
-- **Enable** / **Disable** — explicit, with a confirmation log.
-- **Log Status** — prints the current state and threshold to the Console.
-
-The state is stored in the project itself (`AndroidValidateAppBundleSize` in
-`ProjectSettings.asset`), so it is committed with the project like any other Player Setting and
-both paths — the undocumented `validateAppBundleSize`/`appBundleSizeToValidate` PlayerSettings
-properties and a direct `ProjectSettings.asset` fallback — produce the same result.
-
-Build scripts can call it automatically before `BuildPipeline.BuildPlayer`:
+### Fast Compression (`CLZF2`)
 
 ```csharp
-Wagenheimer.UnityUtils.Editor.AabSizeWarningTool.SetEnabled(false);
+using Wagenheimer.UnityUtils;
+
+byte[] rawData = GetSaveDataBytes();
+byte[] compressed = CLZF2.Compress(rawData);
+
+byte[] decompressed = CLZF2.Decompress(compressed);
 ```
 
-`SetEnabled` is a silent no-op when the state already matches, so calling it on every Android
-build is free.
-
-## Versioning & Releases
-
-Version bumps are fully automated by GitHub Actions (`.github/workflows/bump-version.yml`):
-
-| Commit message | Version bump |
-|---|---|
-| `feat:` / `feat(scope):` | **minor** |
-| `fix:` / anything else | **patch** |
-| `feat!:` or `BREAKING CHANGE` in body | **major** |
-
-On every push to `master`, the workflow:
-
-1. Bumps `package.json` according to the commit message;
-2. Regenerates the top entry of [`CHANGELOG.md`](CHANGELOG.md) from the commits since the last tag;
-3. Commits as `chore: bump version to X.Y.Z`, tags `vX.Y.Z` and pushes;
-4. Creates a GitHub Release with auto-generated release notes.
-
-Because of that, users get update notifications from the Update Checker automatically — you never
-touch `package.json` or the changelog by hand. Just write conventional commit messages.
-
-> Note: pushes that only touch `package.json` / `CHANGELOG.md` don't trigger a new bump (that's
-> the bot committing), and neither do commits starting with `chore: bump version`.
+---
 
 ## Requirements
 
-- Unity 2021.3+
-- `com.unity.textmeshpro` (only needed for the TMP CanvasRenderer Cleaner)
+- **Unity**: 2021.3 LTS or higher.
+- **Dependencies**:
+  - `com.unity.textmeshpro` (3.0.6+)
+  - `com.wagenheimer.packagehub` (optional, auto-bootstrapped for updates)
+  - `com.unity.purchasing` (optional, for Codeless IAP button cleanup)
 
-## See Also
-
-- [Rewired Helper](https://github.com/wagenheimer/RewiredHelper) — input-type detection and UI
-  helper layer on top of Rewired, with the same update-check/versioning scheme.
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT © [Cezar Wagenheimer](https://github.com/wagenheimer)

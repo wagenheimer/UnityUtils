@@ -5,7 +5,7 @@ namespace Wagenheimer.UnityUtils.Editor
 {
     public static class UpdateChecker
     {
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Check for Updates...", priority = 159)]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Check for Updates...", priority = 200)]
         public static void CheckForUpdateMenu() => CheckForUpdate(true);
 
         public static void CheckForUpdate(bool force = false)

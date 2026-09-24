@@ -2,6 +2,15 @@ name: UnityUtils
 
 # Changelog
 
+## [1.9.0] - 2026-09-23
+
+### Added
+- **UI Toolkit Hub Window (`UnityUtilsHubWindow`)**: Complete modern dashboard replacing legacy IMGUI windows with a responsive dark-slate design system, segmented tabs, and real-time metric cards.
+- **Bootstrap Diagnostic Engine (`BootstrapChecker` & `BootstrapCheckerView`)**: Automated diagnostic suite that scans settings asset location, scene on-disk presence, Build Settings indices, persistent prefab configurations, scene leaks, and audio listener conflicts, featuring one-click quick fixes.
+- **Unified Project Cleanup Suite (`CleanupSuiteView`)**: Full-project one-click audit consolidating AudioListeners, Missing Scripts, TMP CanvasRenderers, TMP TextContainers, Animator Transitions, and Legacy Component modernizers.
+- **Robust Runtime Loading (`BootstrapLoader`)**: Fallback lookup for `Resources/BootstrapSettings` alongside `Resources/Wagenheimer/BootstrapSettings`.
+- **Streamlined Menu System**: Reorganized menu items under `Tools > Wagenheimer > Unity Utils` with standardized priority ordering.
+
 ## [1.8.1] - 2026-09-21
 
 ### Changed

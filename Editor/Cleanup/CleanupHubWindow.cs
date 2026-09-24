@@ -22,11 +22,10 @@ namespace Wagenheimer.UnityUtils.Editor
         private bool _foldoutTMPTextContainer = true;
         private bool _foldoutUnusedIAPButtons = true;
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Project Cleanup Hub...", priority = 150)]
+        // Legacy entry point redirected to modern UI Toolkit Hub window
         public static void ShowWindow()
         {
-            var window = GetWindow<CleanupHubWindow>(true, "Project Cleanup Hub");
-            window.minSize = new Vector2(500, 400);
+            UnityUtilsHubWindow.Open(UnityUtilsHubWindow.Tab.Cleanup);
         }
 
         private void OnGUI()

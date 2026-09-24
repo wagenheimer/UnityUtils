@@ -16,8 +16,14 @@ namespace Wagenheimer.UnityUtils.Editor
     {
         private const string DefaultSettingsPath = "Assets/Resources/Wagenheimer/BootstrapSettings.asset";
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/1. Create Settings Asset")]
-        private static void CreateSettingsAsset()
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/Run Diagnostic Checker...", priority = 120)]
+        public static void RunDiagnosticChecker()
+        {
+            UnityUtilsHubWindow.Open(UnityUtilsHubWindow.Tab.Bootstrap);
+        }
+
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/Create Settings Asset", priority = 121)]
+        public static void CreateSettingsAsset()
         {
             var existing = FindSettings();
             if (existing != null)
@@ -40,12 +46,12 @@ namespace Wagenheimer.UnityUtils.Editor
             Selection.activeObject = settings;
             EditorUtility.DisplayDialog("Bootstrap Settings",
                 "Created a BootstrapSettings asset. Set the bootstrap scene name and drag in your " +
-                "persistent prefabs (Main/Audio/Music/...), then run '2. Create/Rebuild Bootstrap Scene'.",
+                "persistent prefabs (Main/Audio/Music/...), then run 'Create/Rebuild Bootstrap Scene'.",
                 "OK");
         }
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/2. Create-Rebuild Bootstrap Scene")]
-        private static void CreateOrRebuildBootstrapScene()
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/Create or Rebuild Bootstrap Scene", priority = 122)]
+        public static void CreateOrRebuildBootstrapScene()
         {
             var settings = RequireSettings();
             if (settings == null)
@@ -89,8 +95,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 "OK");
         }
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/3. Remove Persistent Prefabs From Active Scene")]
-        private static void RemoveFromActiveScene()
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/Remove Persistent Prefabs From Active Scene", priority = 124)]
+        public static void RemoveFromActiveScene()
         {
             var settings = RequireSettings();
             if (settings == null)
@@ -123,8 +129,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 "OK");
         }
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/4. Remove Persistent Prefabs From Other Scenes")]
-        private static void RemoveFromOtherScenes()
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Bootstrap/Remove Persistent Prefabs From Other Scenes", priority = 123)]
+        public static void RemoveFromOtherScenes()
         {
             var settings = RequireSettings();
             if (settings == null)
@@ -234,7 +240,7 @@ namespace Wagenheimer.UnityUtils.Editor
             return settings;
         }
 
-        private static string ScenePathFor(string sceneName)
+        internal static string ScenePathFor(string sceneName)
         {
             var existing = AssetDatabase.FindAssets($"t:Scene {sceneName}")
                 .Select(AssetDatabase.GUIDToAssetPath)
@@ -243,7 +249,7 @@ namespace Wagenheimer.UnityUtils.Editor
             return existing ?? $"Assets/Scenes/{sceneName}.unity";
         }
 
-        private static void EnsureSceneInBuildSettings(string scenePath)
+        internal static void EnsureSceneInBuildSettings(string scenePath)
         {
             var scenes = EditorBuildSettings.scenes.ToList();
             if (scenes.Any(s => s.path == scenePath))

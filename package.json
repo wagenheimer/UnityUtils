@@ -1,8 +1,8 @@
 {
   "name": "com.wagenheimer.unityutils",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "displayName": "Unity Utils",
-  "description": "Small, independent Unity Editor utilities: a bootstrap-scene kit that additively loads persistent singletons (audio manager, music, game manager, ...) before any other scene, and cleanup tools for duplicate AudioListeners and stranded TextMeshPro CanvasRenderer components.",
+  "description": "Unity Editor productivity utilities: UI Toolkit dashboard, Bootstrap Scene Kit with diagnostic checker and one-click fixes, comprehensive Project Cleanup Suite, and Android App Bundle tools.",
   "unity": "2021.3",
   "author": {
     "name": "Cezar Wagenheimer",

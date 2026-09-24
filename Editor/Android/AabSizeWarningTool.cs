@@ -25,32 +25,32 @@ namespace Wagenheimer.UnityUtils.Editor
 
         #region Menu Items
 
-        [MenuItem(MenuRoot + "Disable", priority = 10)]
+        [MenuItem(MenuRoot + "Disable", priority = 160)]
         public static void Disable()
         {
             SetEnabled(false, notify: true);
         }
 
-        [MenuItem(MenuRoot + "Enable", priority = 11)]
+        [MenuItem(MenuRoot + "Enable", priority = 161)]
         public static void Enable()
         {
             SetEnabled(true, notify: true);
         }
 
-        [MenuItem(MenuRoot + "Toggle", priority = 12)]
+        [MenuItem(MenuRoot + "Toggle", priority = 162)]
         public static void Toggle()
         {
             SetEnabled(!(IsEnabled() ?? true), notify: true);
         }
 
-        [MenuItem(MenuRoot + "Toggle", validate = true, priority = 12)]
+        [MenuItem(MenuRoot + "Toggle", validate = true, priority = 162)]
         public static bool ToggleValidate()
         {
             Menu.SetChecked(MenuRoot + "Toggle", IsEnabled() ?? true);
             return true;
         }
 
-        [MenuItem(MenuRoot + "Log Status", priority = 13)]
+        [MenuItem(MenuRoot + "Log Status", priority = 163)]
         public static void LogStatus()
         {
             var threshold = GetThreshold();
