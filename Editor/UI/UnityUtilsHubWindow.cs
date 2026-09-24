@@ -357,7 +357,7 @@ namespace Wagenheimer.UnityUtils.Editor
             {
                 // Ignore, use fallback version
             }
-            _version = "1.9.0";
+            _version = "1.11.0";
         }
     }
 }

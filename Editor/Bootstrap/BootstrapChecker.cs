@@ -210,7 +210,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     CanFix = true,
                     FixAction = () =>
                     {
-                        AddSceneToBuildSettings(scenePath, setAsFirst: true);
+                        AddSceneToBuildSettings(scenePath, setAsFirst: false);
                     }
                 });
             }
@@ -230,30 +230,28 @@ namespace Wagenheimer.UnityUtils.Editor
                     }
                 });
             }
-            else if (buildIndex != 0)
+            else if (buildIndex > 0)
             {
+                var firstSceneName = scenes.Length > 0 ? Path.GetFileNameWithoutExtension(scenes[0].path) : "unknown";
                 report.Items.Add(new DiagnosticItem
                 {
-                    Id = "bootstrap-not-index-zero",
+                    Id = "bootstrap-build-settings-additive-ok",
                     Category = "Build Settings",
-                    Title = $"Bootstrap Scene at Index {buildIndex} (Recommended: 0)",
-                    Description = $"The bootstrap scene is currently at index {buildIndex}. Setting it as index 0 guarantees persistent singletons load before any initial scene.",
-                    Severity = DiagnosticSeverity.Info,
-                    CanFix = true,
-                    FixAction = () =>
-                    {
-                        MoveSceneToBuildIndexZero(scenePath);
-                    }
+                    Title = $"Bootstrap Scene in Build Settings (Additive Mode, Index {buildIndex})",
+                    Description = $"Scene is active at index {buildIndex}. It loads additively in the background before your startup scene (Index 0: '{firstSceneName}').",
+                    Severity = DiagnosticSeverity.Pass,
+                    CanFix = false
                 });
             }
             else
             {
+                var nextSceneName = scenes.Length > 1 ? Path.GetFileNameWithoutExtension(scenes[1].path) : "none";
                 report.Items.Add(new DiagnosticItem
                 {
-                    Id = "bootstrap-build-settings-ok",
+                    Id = "bootstrap-build-settings-index-zero",
                     Category = "Build Settings",
-                    Title = "Bootstrap Scene in Build Settings (Index 0)",
-                    Description = $"Scene '{scenePath}' is active at index 0 in Build Settings.",
+                    Title = "Bootstrap Scene at Index 0 (First Scene)",
+                    Description = $"Bootstrap is set as the initial scene. BootstrapLoader will auto-transition to the first content scene ('{nextSceneName}').",
                     Severity = DiagnosticSeverity.Pass,
                     CanFix = false
                 });
@@ -441,19 +439,6 @@ namespace Wagenheimer.UnityUtils.Editor
             }
             EditorBuildSettings.scenes = scenes;
             Debug.Log($"[BootstrapChecker] Enabled '{scenePath}' in Build Settings.");
-        }
-
-        private static void MoveSceneToBuildIndexZero(string scenePath)
-        {
-            var scenes = EditorBuildSettings.scenes.ToList();
-            var target = scenes.FirstOrDefault(s => string.Equals(s.path, scenePath, StringComparison.OrdinalIgnoreCase));
-            if (target != null)
-            {
-                scenes.Remove(target);
-                scenes.Insert(0, target);
-                EditorBuildSettings.scenes = scenes.ToArray();
-                Debug.Log($"[BootstrapChecker] Moved '{scenePath}' to Build Settings index 0.");
-            }
         }
 
         private static void CleanNullPrefabs(BootstrapSettings settings)

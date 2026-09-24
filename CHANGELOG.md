@@ -2,8 +2,16 @@ name: UnityUtils
 
 # Changelog
 
-## [1.10.0] - 2026-09-24
+## [1.11.0] - 2026-09-24
 
+### Changed
+- **Bootstrap Additive Architecture**: The bootstrap scene is no longer expected or required to be Build Settings index 0. The diagnostic checker now marks scenes at index > 0 as Pass in Additive Mode with clear informational UI feedback.
+- **Build Settings Fix Behavior**: Adding the bootstrap scene via the diagnostic quick-fix appends the scene rather than forcing it to index 0, preventing accidental displacement of game splash/menu startup scenes.
+
+### Added
+- **Universal Content Scene Auto-Detection (`BootstrapLoader`)**: When playing or launching directly from the bootstrap scene (in Editor or player builds), `BootstrapLoader` now automatically detects and additively loads the first non-bootstrap content scene in Build Settings, preventing frozen/empty states.
+
+## [1.10.0] - 2026-09-24
 ## [1.9.0] - 2026-09-23
 
 ### Added
