@@ -32,30 +32,117 @@ namespace Wagenheimer.UnityUtils.Editor
         private static readonly Regex ResourcesLoadRegex =
             new Regex("Resources\\.Load\\s*\\(\\s*\"([^\"]+)\"", RegexOptions.Compiled);
 
-        /// <summary>Locates the default 2DxFX installation, preferring the shallowest folder named "2DxFX".</summary>
-        public static ThirdPartyAssetProfile DetectDefaultProfile()
+        /// <summary>
+        /// Locates the pack to audit. Keeps the caller's current target when it still
+        /// looks like a valid pack, then prefers a "-Slim" extract produced by this
+        /// tool, then the original install, and finally falls back to a heuristic
+        /// search for any folder holding 2DxFX scripts (covers renamed extracts).
+        /// </summary>
+        public static ThirdPartyAssetProfile DetectDefaultProfile(string preferredRoot = null)
         {
             var profile = new ThirdPartyAssetProfile();
 
-            var matches = new List<string>();
-            foreach (var guid in AssetDatabase.FindAssets("2DxFX t:Folder"))
+            var current = Normalize(preferredRoot);
+            if (!string.IsNullOrEmpty(current) && LooksLikePack(current))
             {
-                var path = Normalize(AssetDatabase.GUIDToAssetPath(guid));
-                if (string.Equals(Path.GetFileName(path), "2DxFX", StringComparison.OrdinalIgnoreCase))
-                    matches.Add(path);
-            }
-
-            if (matches.Count > 0)
-            {
-                matches.Sort((a, b) => a.Length.CompareTo(b.Length));
-                profile.RootFolder = matches[0];
+                profile.RootFolder = current.TrimEnd('/');
                 return profile;
             }
 
-            if (AssetDatabase.IsValidFolder("Assets/2DxFX"))
+            var candidates = new List<string>();
+
+            foreach (var guid in AssetDatabase.FindAssets(profile.DisplayName + " t:Folder"))
+            {
+                var path = Normalize(AssetDatabase.GUIDToAssetPath(guid));
+                var leaf = Path.GetFileName(path);
+                if (leaf.Equals(profile.DisplayName, StringComparison.OrdinalIgnoreCase) ||
+                    leaf.Equals(profile.DisplayName + "-Slim", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddCandidate(candidates, path);
+                }
+            }
+
+            foreach (var guid in AssetDatabase.FindAssets("_2dxFX t:MonoScript"))
+            {
+                var scriptPath = Normalize(AssetDatabase.GUIDToAssetPath(guid));
+                var root = FindPackRoot(scriptPath, profile.DisplayName);
+                if (!string.IsNullOrEmpty(root)) AddCandidate(candidates, root);
+            }
+
+            if (candidates.Count > 0)
+            {
+                candidates.Sort((a, b) => RankCandidate(a, profile).CompareTo(RankCandidate(b, profile)));
+                profile.RootFolder = candidates[0];
+                return profile;
+            }
+
+            if (AssetDatabase.IsValidFolder(profile.ExtractDestinationFolder))
+                profile.RootFolder = profile.ExtractDestinationFolder;
+            else if (AssetDatabase.IsValidFolder("Assets/2DxFX"))
                 profile.RootFolder = "Assets/2DxFX";
 
             return profile;
+        }
+
+        /// <summary>True when the folder contains the pack's Scripts or Resources subtree.</summary>
+        public static bool LooksLikePack(string folder)
+        {
+            if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder)) return false;
+
+            return AssetDatabase.IsValidFolder(ThirdPartyAssetProfile.Combine(folder, "Scripts")) ||
+                   AssetDatabase.IsValidFolder(ThirdPartyAssetProfile.Combine(folder, "Resources")) ||
+                   AssetDatabase.IsValidFolder(ThirdPartyAssetProfile.Combine(folder, "Editor/Resources"));
+        }
+
+        /// <summary>True when the folder looks like the destination of "Extract Used Only".</summary>
+        public static bool LooksLikeSlimExtract(ThirdPartyAssetProfile profile, string folder)
+        {
+            if (string.IsNullOrEmpty(folder)) return false;
+
+            var leaf = Path.GetFileName(Normalize(folder).TrimEnd('/'));
+            if (string.IsNullOrEmpty(leaf)) return false;
+
+            if (profile != null && leaf.Equals(profile.DisplayName + "-Slim", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return leaf.EndsWith("-Slim", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void AddCandidate(List<string> candidates, string path)
+        {
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                if (string.Equals(candidates[i], path, StringComparison.OrdinalIgnoreCase)) return;
+            }
+            candidates.Add(path);
+        }
+
+        private static int RankCandidate(string path, ThirdPartyAssetProfile profile)
+        {
+            var leaf = Path.GetFileName(path);
+            if (leaf.Equals(profile.DisplayName + "-Slim", StringComparison.OrdinalIgnoreCase)) return 0;
+            if (leaf.EndsWith("-Slim", StringComparison.OrdinalIgnoreCase)) return 1;
+            return 100 + path.Length;
+        }
+
+        private static string FindPackRoot(string scriptPath, string displayName)
+        {
+            var dir = scriptPath;
+            for (var i = 0; i < 8; i++)
+            {
+                var slash = dir.LastIndexOf('/');
+                if (slash <= 0) break;
+                dir = dir.Substring(0, slash);
+
+                var leaf = Path.GetFileName(dir);
+                if (leaf.Equals(displayName, StringComparison.OrdinalIgnoreCase) ||
+                    leaf.EndsWith("-Slim", StringComparison.OrdinalIgnoreCase))
+                    return dir;
+
+                if (AssetDatabase.IsValidFolder(ThirdPartyAssetProfile.Combine(dir, "Resources")))
+                    return dir;
+            }
+            return null;
         }
 
         public static bool DetectUrp()
@@ -76,7 +163,9 @@ namespace Wagenheimer.UnityUtils.Editor
 
             if (profile == null || !AssetDatabase.IsValidFolder(profile.RootFolder))
             {
-                result.FatalError = "Package folder not found: " + (profile != null ? profile.RootFolder : "<null>");
+                result.FatalError = "Package folder not found: " +
+                                    (profile != null ? profile.RootFolder : "<null>") +
+                                    ". Use Auto-Detect to locate the pack (including a '-Slim' extract).";
                 return result;
             }
 

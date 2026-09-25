@@ -115,7 +115,7 @@ namespace Wagenheimer.UnityUtils.Editor
             finally
             {
                 AssetDatabase.StopAssetEditing();
-                AssetDatabase.Refresh();
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             }
 
             return result;
@@ -192,8 +192,6 @@ namespace Wagenheimer.UnityUtils.Editor
                         result.AssetsExtracted++;
                 }
 
-                AssetDatabase.Refresh();
-
                 if (AssetDatabase.IsValidFolder(profile.RootFolder))
                 {
                     result.BytesReclaimed += ThirdPartyPathUtility.FolderSize(profile.RootFolder);
@@ -204,7 +202,7 @@ namespace Wagenheimer.UnityUtils.Editor
             finally
             {
                 AssetDatabase.StopAssetEditing();
-                AssetDatabase.Refresh();
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             }
 
             return result;
