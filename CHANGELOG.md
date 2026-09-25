@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.14.1] - 2026-09-25
+
+### Fixed
+- correct URP shader semantic rewrite and clarify third-party slimmer UI
+
 ## [1.14.0] - 2026-09-25
 
 ### Added
