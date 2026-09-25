@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.13.1] - 2026-09-25
+
+### Fixed
+- retarget third-party slimmer after extract, improve folder detection and UI
+
 ## [1.13.0] - 2026-09-25
 
 ### Added
