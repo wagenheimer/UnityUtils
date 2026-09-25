@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.14.0] - 2026-09-25
+
+### Added
+- show loaded package version and add force re-resolve to third-party slimmer
+
 ## [1.13.1] - 2026-09-25
 
 ### Fixed

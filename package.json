@@ -1,6 +1,6 @@
 {
   "name": "com.wagenheimer.unityutils",
-  "version": "1.13.1",
+  "version": "1.14.0",
   "displayName": "Unity Utils",
   "description": "Unity Editor productivity utilities: UI Toolkit dashboard, Bootstrap Scene Kit with diagnostic checker and one-click fixes, comprehensive Project Cleanup Suite, Third-Party Asset Slimmer (usage audit, extract-used-only, URP shader port), and Android App Bundle tools.",
   "unity": "2021.3",
