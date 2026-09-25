@@ -35,7 +35,7 @@ namespace Wagenheimer.UnityUtils.Editor
         private static readonly Regex Sampler2DRegex = new Regex("\\bsampler2D\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*;", RegexOptions.Compiled);
         private static readonly Regex Tex2DRegex = new Regex("\\btex2D\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*,", RegexOptions.Compiled);
         private static readonly Regex ObjectToClipPosRegex = new Regex("\\bUnityObjectToClipPos\\s*\\(", RegexOptions.Compiled);
-        private static readonly Regex ColorSemanticRegex = new Regex(":\\s*COLOR\\b", RegexOptions.Compiled);
+        private static readonly Regex ColorSemanticRegex = new Regex("\\)\\s*:\\s*COLOR\\b", RegexOptions.Compiled);
         private static readonly Regex InputStructRegex = new Regex("struct\\s+Input\\s*\\{([^}]*)\\}", RegexOptions.Compiled);
         private static readonly Regex FieldRegex = new Regex("([A-Za-z_][A-Za-z0-9_]*)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*;", RegexOptions.Compiled);
         private static readonly Regex StateLineRegex = new Regex("^[ \\t]*(Blend|BlendOp|ZWrite|ZTest|Cull|ColorMask|Offset|Lighting|ZClip)\\b[^\\n]*$", RegexOptions.Multiline | RegexOptions.Compiled);
@@ -92,9 +92,24 @@ namespace Wagenheimer.UnityUtils.Editor
 
                 if (IsAlreadyUrp(original))
                 {
-                    entry.Message = "Already URP-compatible, skipped.";
-                    result.Skipped++;
-                    continue;
+                    if (IsGeneratedShaderValid(original))
+                    {
+                        entry.Message = "Already URP-compatible, skipped.";
+                        result.Skipped++;
+                        continue;
+                    }
+
+                    // A previous conversion produced invalid semantics (for example a
+                    // struct field turned into ": SV_Target"). Repair from the backup.
+                    var repaired = ReadBackup(profile, shader.Path);
+                    if (string.IsNullOrEmpty(repaired))
+                    {
+                        entry.Message = "Shader is URP-tagged but invalid, and no backup was found. Use Restore Backup first.";
+                        result.Skipped++;
+                        continue;
+                    }
+                    original = repaired;
+                    entry.Message = "Repairing an invalid previous conversion.";
                 }
 
                 bool surface;
@@ -115,6 +130,14 @@ namespace Wagenheimer.UnityUtils.Editor
                 if (string.IsNullOrEmpty(converted))
                 {
                     entry.Message = "Could not parse shader structure, skipped.";
+                    result.Skipped++;
+                    continue;
+                }
+
+                if (!IsGeneratedShaderValid(converted))
+                {
+                    entry.Message = "Generated shader failed a safety check; skipped to avoid breaking materials.";
+                    result.Errors.Add(shader.Path + ": generated shader failed validation (semantic placement).");
                     result.Skipped++;
                     continue;
                 }
@@ -220,7 +243,7 @@ namespace Wagenheimer.UnityUtils.Editor
             result = Sampler2DRegex.Replace(result, "TEXTURE2D($1);\n    SAMPLER(sampler_$1);");
             result = Tex2DRegex.Replace(result, "SAMPLE_TEXTURE2D($1, sampler_$1,");
             result = ObjectToClipPosRegex.Replace(result, "DxFXURP_ObjectToClipPos(");
-            result = ColorSemanticRegex.Replace(result, ": SV_Target");
+            result = ColorSemanticRegex.Replace(result, ") : SV_Target");
             result = EnsureUrpSubShaderTag(result);
             result = InsertAfterAnchor(result, UrpCoreInclude, VertexFragmentShim);
 
@@ -264,7 +287,7 @@ namespace Wagenheimer.UnityUtils.Editor
             body = Sampler2DRegex.Replace(body, "TEXTURE2D($1);\n    SAMPLER(sampler_$1);");
             body = Tex2DRegex.Replace(body, "SAMPLE_TEXTURE2D($1, sampler_$1,");
             body = ObjectToClipPosRegex.Replace(body, "DxFXURP_ObjectToClipPos(");
-            body = ColorSemanticRegex.Replace(body, ": SV_Target");
+            body = ColorSemanticRegex.Replace(body, ") : SV_Target");
 
             var states = StateLineRegex.Matches(subShader);
             var statesBuilder = new StringBuilder();
@@ -353,16 +376,45 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static void WriteBackup(ThirdPartyAssetProfile profile, string assetPath, string contents)
         {
+            var backupPath = BackupPath(profile, assetPath);
+            var directory = Path.GetDirectoryName(backupPath);
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+            File.WriteAllText(backupPath, contents, new UTF8Encoding(false));
+        }
+
+        private static string ReadBackup(ThirdPartyAssetProfile profile, string assetPath)
+        {
+            try
+            {
+                var backupPath = BackupPath(profile, assetPath);
+                return File.Exists(backupPath) ? File.ReadAllText(backupPath) : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string BackupPath(ThirdPartyAssetProfile profile, string assetPath)
+        {
             var root = profile.RootFolder.Replace('\\', '/').TrimEnd('/') + "/";
             var normalized = assetPath.Replace('\\', '/');
             var relative = normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase)
                 ? normalized.Substring(root.Length)
                 : Path.GetFileName(normalized);
 
-            var backupPath = Path.Combine(ThirdPartyPathUtility.ToAbsolutePath(profile.BackupFolder), relative.Replace('/', Path.DirectorySeparatorChar));
-            var directory = Path.GetDirectoryName(backupPath);
-            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(backupPath, contents, new UTF8Encoding(false));
+            return Path.Combine(ThirdPartyPathUtility.ToAbsolutePath(profile.BackupFolder), relative.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        private static bool IsGeneratedShaderValid(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+
+            // A struct field mis-replacement shows up as "<type> <name> : SV_Target;".
+            if (text.Contains("SV_Target;")) return false;
+
+            // Generated shaders must declare the fragment color output.
+            return text.IndexOf("SV_Target", StringComparison.Ordinal) >= 0;
         }
 
         private static string GetShaderName(string text)

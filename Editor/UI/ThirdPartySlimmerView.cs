@@ -12,10 +12,9 @@ namespace Wagenheimer.UnityUtils.Editor
     /// footprint, applies in-place or extract-only clean-up, and ports used
     /// Built-in Render Pipeline shaders to URP.
     ///
-    /// "Slim In-Place" and "Extract Used Only" are alternative strategies, not
-    /// sequential steps: Extract relocates the referenced subset and deletes the
-    /// original, after which the tool retargets the new "-Slim" folder. The view
-    /// persists the working folder so it survives domain reloads.
+    /// The layout follows a numbered flow - Target, Audit, Clean-up, URP - where the
+    /// two clean-up strategies are presented as mutually exclusive options. The
+    /// working folder is persisted so it survives domain reloads.
     /// </summary>
     public class ThirdPartySlimmerView : VisualElement
     {
@@ -34,9 +33,10 @@ namespace Wagenheimer.UnityUtils.Editor
         private Label _packBadge;
         private Label _modeBadge;
         private Label _urpBadge;
+        private Label _backupLabel;
         private Button _extractButton;
-        private Label _extractNote;
-        private Label _slimWarning;
+        private VisualElement _optionsContainer;
+        private VisualElement _strategyBanner;
 
         private Toggle _optScripts;
         private Toggle _optShaders;
@@ -71,21 +71,14 @@ namespace Wagenheimer.UnityUtils.Editor
             metricsRow.Add(UnityUtilsUIStyle.CreateMetricCard("Reclaimable", "-", out _reclaimableMetric));
             scroll.Add(metricsRow);
 
-            scroll.Add(BuildWorkflowCard());
             scroll.Add(BuildTargetCard());
             scroll.Add(BuildAuditCard());
-
-            _summaryLabel = new Label("No audit run yet.");
-            _summaryLabel.AddToClassList("status-box");
-            _summaryLabel.style.whiteSpace = WhiteSpace.Normal;
-            scroll.Add(_summaryLabel);
-
-            scroll.Add(BuildSlimCard());
-            scroll.Add(BuildExtractCard());
+            scroll.Add(BuildStrategyCard());
             scroll.Add(BuildUrpCard());
 
-            _statusLabel = new Label("Ready. Pick a folder and click 'Run Audit'.");
+            _statusLabel = new Label("Ready. Click 'Run Audit' (step 2) to start.");
             _statusLabel.AddToClassList("status-box");
+            _statusLabel.style.whiteSpace = WhiteSpace.Normal;
             scroll.Add(_statusLabel);
 
             Add(scroll);
@@ -94,55 +87,11 @@ namespace Wagenheimer.UnityUtils.Editor
             if (_scan != null) RefreshMetrics();
         }
 
-        private VisualElement BuildWorkflowCard()
-        {
-            var card = UnityUtilsUIStyle.CreateCard(
-                "Recommended Workflow",
-                "Audit first, then pick ONE strategy. You do not need both.",
-                out var body);
-
-            body.Add(WorkflowStep("1. Run Audit", "Read-only scan that reports which components, shaders and Resources assets the project references (ignoring the pack's own Examples/Doc)."));
-
-            var extract = WorkflowStep("2a. Extract Used Only  (recommended)",
-                "Moves only the referenced assets to 'Assets/ThirdParty/<Pack>-Slim', preserving GUIDs, and deletes the original pack folder. The tool then retargets the slim folder for further audits and the URP port.");
-            extract.style.marginBottom = 6;
-            body.Add(extract);
-
-            body.Add(WorkflowStep("2b. Slim In-Place  (alternative)",
-                "Keeps the pack where it is and deletes unused assets inside it, moving editor-only Resources out of the build. Do NOT run this after Extract - the original folder no longer exists."));
-
-            var urp = WorkflowStep("3. URP Shader Port  (optional)",
-                "Rewrites the used shaders to URP in place, on whichever folder is currently targeted (original or '-Slim').");
-            urp.style.marginTop = 6;
-            body.Add(urp);
-
-            return card;
-        }
-
-        private static VisualElement WorkflowStep(string title, string description)
-        {
-            var item = new VisualElement();
-
-            var t = new Label(title);
-            t.style.fontSize = 12;
-            t.style.unityFontStyleAndWeight = FontStyle.Bold;
-
-            var d = new Label(description);
-            d.style.fontSize = 11;
-            d.style.whiteSpace = WhiteSpace.Normal;
-            d.style.color = new Color(0.62f, 0.62f, 0.68f);
-            d.style.marginLeft = 6;
-
-            item.Add(t);
-            item.Add(d);
-            return item;
-        }
-
         private VisualElement BuildTargetCard()
         {
             var card = UnityUtilsUIStyle.CreateCard(
-                "Target Package",
-                "The folder currently being audited and modified.",
+                "Step 1 - Target Package",
+                "The folder that audits and clean-up operations act on.",
                 out var body);
 
             var rootRow = new VisualElement();
@@ -185,19 +134,186 @@ namespace Wagenheimer.UnityUtils.Editor
             badgeRow.Add(_urpBadge);
             body.Add(badgeRow);
 
+            var versionRow = new VisualElement();
+            versionRow.style.flexDirection = FlexDirection.Row;
+            versionRow.style.alignItems = Align.Center;
+            versionRow.style.marginTop = 8;
+
             var versionLabel = new Label("UnityUtils v" + GetInstalledVersion() + " loaded");
             versionLabel.style.fontSize = 11;
-            versionLabel.style.marginTop = 8;
+            versionLabel.style.flexGrow = 1;
             versionLabel.style.color = new Color(0.6f, 0.6f, 0.68f);
-            body.Add(versionLabel);
-
-            var resolveRow = new VisualElement();
-            resolveRow.AddToClassList("action-toolbar");
-            resolveRow.style.marginTop = 8;
-            resolveRow.Add(UnityUtilsUIStyle.CreateButton("Force Package Re-Resolve", "btn-secondary", ForcePackageResolve));
-            body.Add(resolveRow);
+            versionRow.Add(versionLabel);
+            versionRow.Add(UnityUtilsUIStyle.CreateButton("Force Package Re-Resolve", "btn-secondary", ForcePackageResolve));
+            body.Add(versionRow);
 
             return card;
+        }
+
+        private VisualElement BuildAuditCard()
+        {
+            var card = UnityUtilsUIStyle.CreateCard(
+                "Step 2 - Audit",
+                "Read-only scan. Reports used vs. unused assets and the reclaimable footprint.",
+                out var body);
+
+            var bar = new VisualElement();
+            bar.AddToClassList("action-toolbar");
+            bar.style.marginTop = 0;
+            bar.style.borderTopWidth = 0;
+            bar.Add(UnityUtilsUIStyle.CreateButton("Run Audit", "btn-primary", RunAudit));
+            bar.Add(UnityUtilsUIStyle.CreateButton("Show Details", "btn-secondary", ShowDetails));
+            body.Add(bar);
+
+            _summaryLabel = new Label("No audit run yet.");
+            _summaryLabel.AddToClassList("status-box");
+            _summaryLabel.style.whiteSpace = WhiteSpace.Normal;
+            body.Add(_summaryLabel);
+
+            return card;
+        }
+
+        private VisualElement BuildStrategyCard()
+        {
+            var card = UnityUtilsUIStyle.CreateCard(
+                "Step 3 - Clean-up Strategy",
+                "Choose ONE. These are alternatives: only one of them applies to a given pack.",
+                out var body);
+
+            var explain = new Label(
+                "Option A keeps a portable minimal copy and is the recommended path. Option B edits the pack where it already lives. " +
+                "Never run Option B after Option A - the original folder no longer exists.");
+            explain.AddToClassList("card-subtitle");
+            explain.style.whiteSpace = WhiteSpace.Normal;
+            body.Add(explain);
+
+            _strategyBanner = new VisualElement();
+            _strategyBanner.style.marginTop = 8;
+            var bannerLabel = new Label(
+                "This folder is already a slim extract (Option A result): there is nothing to clean up. " +
+                "Continue to Step 4 if you still need the URP port.");
+            bannerLabel.AddToClassList("status-box");
+            bannerLabel.style.whiteSpace = WhiteSpace.Normal;
+            _strategyBanner.Add(bannerLabel);
+            _strategyBanner.style.display = DisplayStyle.None;
+            body.Add(_strategyBanner);
+
+            _optionsContainer = new VisualElement();
+            _optionsContainer.style.marginTop = 6;
+            _optionsContainer.Add(BuildExtractOption());
+            _optionsContainer.Add(BuildDivider());
+            _optionsContainer.Add(BuildSlimOption());
+            body.Add(_optionsContainer);
+
+            return card;
+        }
+
+        private VisualElement BuildExtractOption()
+        {
+            var block = new VisualElement();
+
+            var title = new Label("Option A - Extract Used Only  (recommended)");
+            title.style.unityFontStyleAndWeight = FontStyle.Bold;
+            title.style.fontSize = 12;
+
+            var desc = new Label(
+                "Moves only the referenced assets to 'Assets/ThirdParty/<Pack>-Slim', preserving GUIDs, then deletes the original pack. " +
+                "The tool retargets the new folder automatically.");
+            desc.AddToClassList("card-subtitle");
+            desc.style.whiteSpace = WhiteSpace.Normal;
+
+            _extractButton = UnityUtilsUIStyle.CreateButton("Extract Used Only...", "btn-danger", ExtractUsedOnly);
+            _extractButton.style.marginTop = 6;
+            _extractButton.style.alignSelf = Align.FlexStart;
+
+            block.Add(title);
+            block.Add(desc);
+            block.Add(_extractButton);
+            return block;
+        }
+
+        private VisualElement BuildSlimOption()
+        {
+            var block = new VisualElement();
+
+            var title = new Label("Option B - Slim In-Place");
+            title.style.unityFontStyleAndWeight = FontStyle.Bold;
+            title.style.fontSize = 12;
+
+            var desc = new Label(
+                "Keeps the pack where it is, deletes unused assets inside it and moves editor-only resources out of the build.");
+            desc.AddToClassList("card-subtitle");
+            desc.style.whiteSpace = WhiteSpace.Normal;
+            block.Add(title);
+            block.Add(desc);
+
+            _optScripts = new Toggle("Delete unused scripts") { value = true };
+            _optShaders = new Toggle("Delete unused shaders") { value = true };
+            _optResources = new Toggle("Delete unused Resources assets") { value = true };
+            _optMoveEditor = new Toggle("Move editor-only Resources into Editor/Resources") { value = true };
+            _optDoc = new Toggle("Delete Doc folder") { value = true };
+            _optExamples = new Toggle("Delete Examples folder") { value = false };
+            _optExtra = new Toggle("Delete ExtraShaders folder") { value = false };
+            block.Add(_optScripts);
+            block.Add(_optShaders);
+            block.Add(_optResources);
+            block.Add(_optMoveEditor);
+            block.Add(_optDoc);
+            block.Add(_optExamples);
+            block.Add(_optExtra);
+
+            var apply = UnityUtilsUIStyle.CreateButton("Apply Slim In-Place...", "btn-danger", ApplySlim);
+            apply.style.marginTop = 6;
+            apply.style.alignSelf = Align.FlexStart;
+            block.Add(apply);
+            return block;
+        }
+
+        private static VisualElement BuildDivider()
+        {
+            var divider = new VisualElement();
+            divider.style.height = 1;
+            divider.style.marginTop = 12;
+            divider.style.marginBottom = 12;
+            divider.style.backgroundColor = new Color(1f, 1f, 1f, 0.08f);
+            return divider;
+        }
+
+        private VisualElement BuildUrpCard()
+        {
+            var card = UnityUtilsUIStyle.CreateCard(
+                "Step 4 - URP Shader Port",
+                "Rewrites used shaders to URP in place, keeping shader names and GUIDs so materials keep working.",
+                out var body);
+
+            var note = new Label(
+                "Runs on the folder targeted in step 1. Vertex/fragment shaders are converted mechanically; legacy surface shaders are " +
+                "best-effort and flagged for review. The original file is backed up before writing and can be restored here at any time.");
+            note.AddToClassList("card-subtitle");
+            note.style.whiteSpace = WhiteSpace.Normal;
+            body.Add(note);
+
+            _backupLabel = new Label("Backup status: unknown");
+            _backupLabel.style.fontSize = 11;
+            _backupLabel.style.marginTop = 8;
+            _backupLabel.style.color = new Color(0.6f, 0.6f, 0.68f);
+            body.Add(_backupLabel);
+
+            var bar = new VisualElement();
+            bar.AddToClassList("action-toolbar");
+            bar.Add(UnityUtilsUIStyle.CreateButton("Convert Used Shaders to URP...", "btn-primary", ConvertToUrp));
+            bar.Add(UnityUtilsUIStyle.CreateButton("Restore Backup", "btn-secondary", RestoreBackup));
+            body.Add(bar);
+            return card;
+        }
+
+        private static string LoadRoot()
+        {
+            var saved = EditorPrefs.GetString(RootPrefKey, string.Empty);
+            if (!string.IsNullOrEmpty(saved) && AssetDatabase.IsValidFolder(saved))
+                return saved.Replace('\\', '/').TrimEnd('/');
+
+            return ThirdPartyAssetScanner.DetectDefaultProfile().RootFolder;
         }
 
         private static string GetInstalledVersion()
@@ -217,126 +333,6 @@ namespace Wagenheimer.UnityUtils.Editor
                 // Fall through to the unknown marker.
             }
             return "?";
-        }
-
-        private void ForcePackageResolve()
-        {
-            UnityEditor.PackageManager.Client.Resolve();
-            SetStatus("Requested a package re-resolve. If the version label above does not change, close Unity, " +
-                      "delete Library/PackageCache/com.wagenheimer.unityutils@*, then reopen.");
-        }
-
-        private VisualElement BuildAuditCard()
-        {
-            var card = UnityUtilsUIStyle.CreateCard(
-                "Audit",
-                "Read-only. Reports used vs. unused assets and the reclaimable build footprint.",
-                out var body);
-
-            var bar = new VisualElement();
-            bar.AddToClassList("action-toolbar");
-            bar.style.marginTop = 0;
-            bar.style.borderTopWidth = 0;
-            bar.Add(UnityUtilsUIStyle.CreateButton("Run Audit", "btn-primary", RunAudit));
-            bar.Add(UnityUtilsUIStyle.CreateButton("Show Details", "btn-secondary", ShowDetails));
-            body.Add(bar);
-            return card;
-        }
-
-        private VisualElement BuildSlimCard()
-        {
-            var card = UnityUtilsUIStyle.CreateCard(
-                "Strategy B - Slim In-Place",
-                "Deletes unused assets inside the current folder and moves editor-only resources out of the build.",
-                out var body);
-
-            _slimWarning = new Label(
-                "This folder looks like a slim extract - it is already minimal, so Slim In-Place is normally unnecessary.");
-            _slimWarning.AddToClassList("card-subtitle");
-            _slimWarning.style.whiteSpace = WhiteSpace.Normal;
-            _slimWarning.style.display = DisplayStyle.None;
-            body.Add(_slimWarning);
-
-            _optScripts = new Toggle("Delete unused scripts") { value = true };
-            _optShaders = new Toggle("Delete unused shaders") { value = true };
-            _optResources = new Toggle("Delete unused Resources assets") { value = true };
-            _optMoveEditor = new Toggle("Move editor-only Resources into Editor/Resources") { value = true };
-            _optDoc = new Toggle("Delete Doc folder") { value = true };
-            _optExamples = new Toggle("Delete Examples folder") { value = false };
-            _optExtra = new Toggle("Delete ExtraShaders folder") { value = false };
-
-            body.Add(_optScripts);
-            body.Add(_optShaders);
-            body.Add(_optResources);
-            body.Add(_optMoveEditor);
-            body.Add(_optDoc);
-            body.Add(_optExamples);
-            body.Add(_optExtra);
-
-            var bar = new VisualElement();
-            bar.AddToClassList("action-toolbar");
-            bar.Add(UnityUtilsUIStyle.CreateButton("Apply Slim In-Place...", "btn-danger", ApplySlim));
-            body.Add(bar);
-            return card;
-        }
-
-        private VisualElement BuildExtractCard()
-        {
-            var card = UnityUtilsUIStyle.CreateCard(
-                "Strategy A - Extract Used Only",
-                "Moves the referenced subset to a new '-Slim' folder, preserving GUIDs, and deletes the original pack.",
-                out var body);
-
-            var note = new Label(
-                "After extracting, the tool automatically targets the new folder. You do NOT need to run Slim In-Place first. " +
-                "Scene and material references keep working because asset GUIDs are moved, not regenerated.");
-            note.AddToClassList("card-subtitle");
-            note.style.whiteSpace = WhiteSpace.Normal;
-            body.Add(note);
-
-            _extractNote = new Label("This folder is already a slim extract. Nothing to extract.");
-            _extractNote.AddToClassList("card-subtitle");
-            _extractNote.style.color = new Color(0.6f, 0.8f, 0.6f);
-            _extractNote.style.display = DisplayStyle.None;
-            body.Add(_extractNote);
-
-            var bar = new VisualElement();
-            bar.AddToClassList("action-toolbar");
-            _extractButton = UnityUtilsUIStyle.CreateButton("Extract Used Only...", "btn-danger", ExtractUsedOnly);
-            bar.Add(_extractButton);
-            body.Add(bar);
-            return card;
-        }
-
-        private VisualElement BuildUrpCard()
-        {
-            var card = UnityUtilsUIStyle.CreateCard(
-                "URP Shader Port",
-                "Rewrites the used shaders to URP in place, keeping shader names and GUIDs so materials keep working.",
-                out var body);
-
-            var note = new Label(
-                "Runs on the folder currently targeted above. Vertex/fragment shaders are converted mechanically; " +
-                "legacy surface shaders are best-effort and flagged for review. Originals are backed up under the pack's '~' folder and can be restored.");
-            note.AddToClassList("card-subtitle");
-            note.style.whiteSpace = WhiteSpace.Normal;
-            body.Add(note);
-
-            var bar = new VisualElement();
-            bar.AddToClassList("action-toolbar");
-            bar.Add(UnityUtilsUIStyle.CreateButton("Convert Used Shaders to URP...", "btn-primary", ConvertToUrp));
-            bar.Add(UnityUtilsUIStyle.CreateButton("Restore Backup", "btn-secondary", RestoreBackup));
-            body.Add(bar);
-            return card;
-        }
-
-        private static string LoadRoot()
-        {
-            var saved = EditorPrefs.GetString(RootPrefKey, string.Empty);
-            if (!string.IsNullOrEmpty(saved) && AssetDatabase.IsValidFolder(saved))
-                return saved.Replace('\\', '/').TrimEnd('/');
-
-            return ThirdPartyAssetScanner.DetectDefaultProfile().RootFolder;
         }
 
         private ThirdPartyAssetProfile GetProfile()
@@ -364,8 +360,18 @@ namespace Wagenheimer.UnityUtils.Editor
             }
 
             if (_extractButton != null) _extractButton.SetEnabled(valid && !isSlim);
-            if (_extractNote != null) _extractNote.style.display = isSlim ? DisplayStyle.Flex : DisplayStyle.None;
-            if (_slimWarning != null) _slimWarning.style.display = isSlim ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_optionsContainer != null) _optionsContainer.style.display = isSlim ? DisplayStyle.None : DisplayStyle.Flex;
+            if (_strategyBanner != null) _strategyBanner.style.display = isSlim ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_backupLabel != null) RefreshBackupLabel(profile);
+        }
+
+        private void RefreshBackupLabel(ThirdPartyAssetProfile profile)
+        {
+            var has = UrpShaderConverter.HasBackups(profile);
+            _backupLabel.text = has
+                ? "Backup status: original shaders backed up under '" + profile.BackupFolder + "'."
+                : "Backup status: no backup yet for this folder.";
+            _backupLabel.style.color = has ? new Color(0.55f, 0.8f, 0.6f) : new Color(0.6f, 0.6f, 0.68f);
         }
 
         private static void SetBadgeClass(Label badge, string typeClass)
@@ -397,6 +403,13 @@ namespace Wagenheimer.UnityUtils.Editor
             }
             Selection.activeObject = asset;
             EditorGUIUtility.PingObject(asset);
+        }
+
+        private void ForcePackageResolve()
+        {
+            UnityEditor.PackageManager.Client.Resolve();
+            SetStatus("Requested a package re-resolve. If the version label above does not change, close Unity, " +
+                      "delete Library/PackageCache/com.wagenheimer.unityutils@*, then reopen.");
         }
 
         private void RunAudit()
@@ -552,6 +565,7 @@ namespace Wagenheimer.UnityUtils.Editor
 
             var result = UrpShaderConverter.ConvertUsedShaders(_scan.Profile, _scan, true);
             for (var i = 0; i < result.Errors.Count; i++) Debug.LogWarning("[ThirdPartySlimmer] " + result.Errors[i]);
+            RefreshTargetState();
             SetStatus("URP conversion: " + result.Summary +
                       (result.NeedsReview > 0 ? " Review the flagged surface shaders visually in a scene." : string.Empty));
         }
@@ -577,7 +591,7 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (_scan == null || !_scan.Succeeded)
             {
-                SetStatus("Run an audit first.");
+                SetStatus("Run an audit first (step 2).");
                 return false;
             }
             return true;
