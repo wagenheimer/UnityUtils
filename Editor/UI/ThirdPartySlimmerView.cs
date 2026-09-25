@@ -185,7 +185,45 @@ namespace Wagenheimer.UnityUtils.Editor
             badgeRow.Add(_urpBadge);
             body.Add(badgeRow);
 
+            var versionLabel = new Label("UnityUtils v" + GetInstalledVersion() + " loaded");
+            versionLabel.style.fontSize = 11;
+            versionLabel.style.marginTop = 8;
+            versionLabel.style.color = new Color(0.6f, 0.6f, 0.68f);
+            body.Add(versionLabel);
+
+            var resolveRow = new VisualElement();
+            resolveRow.AddToClassList("action-toolbar");
+            resolveRow.style.marginTop = 8;
+            resolveRow.Add(UnityUtilsUIStyle.CreateButton("Force Package Re-Resolve", "btn-secondary", ForcePackageResolve));
+            body.Add(resolveRow);
+
             return card;
+        }
+
+        private static string GetInstalledVersion()
+        {
+            try
+            {
+                const string packageJson = "Packages/com.wagenheimer.unityutils/package.json";
+                if (System.IO.File.Exists(packageJson))
+                {
+                    var json = System.IO.File.ReadAllText(packageJson);
+                    var match = System.Text.RegularExpressions.Regex.Match(json, "\"version\"\\s*:\\s*\"([^\"]+)\"");
+                    if (match.Success) return match.Groups[1].Value;
+                }
+            }
+            catch
+            {
+                // Fall through to the unknown marker.
+            }
+            return "?";
+        }
+
+        private void ForcePackageResolve()
+        {
+            UnityEditor.PackageManager.Client.Resolve();
+            SetStatus("Requested a package re-resolve. If the version label above does not change, close Unity, " +
+                      "delete Library/PackageCache/com.wagenheimer.unityutils@*, then reopen.");
         }
 
         private VisualElement BuildAuditCard()
