@@ -17,8 +17,9 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             Bootstrap = 0,
             Cleanup = 1,
-            AndroidTools = 2,
-            About = 3
+            ThirdPartySlimmer = 2,
+            AndroidTools = 3,
+            About = 4
         }
 
         private const string PackageJsonPath = "Packages/com.wagenheimer.unityutils/package.json";
@@ -40,6 +41,12 @@ namespace Wagenheimer.UnityUtils.Editor
         public static void OpenCleanup()
         {
             Open(Tab.Cleanup);
+        }
+
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Third-Party/Open Third-Party Slimmer...", priority = 146)]
+        public static void OpenThirdPartySlimmer()
+        {
+            Open(Tab.ThirdPartySlimmer);
         }
 
         public static UnityUtilsHubWindow Open(Tab tab = Tab.Bootstrap)
@@ -91,7 +98,7 @@ namespace Wagenheimer.UnityUtils.Editor
             var tabToolbar = new VisualElement();
             tabToolbar.AddToClassList("tab-toolbar");
 
-            var tabNames = new[] { "Bootstrap & Diagnostics", "Project Cleanup", "Android & Tools", "About & Updates" };
+            var tabNames = new[] { "Bootstrap & Diagnostics", "Project Cleanup", "Third-Party Slim", "Android & Tools", "About & Updates" };
             _tabButtons = new Button[tabNames.Length];
 
             for (var i = 0; i < tabNames.Length; i++)
@@ -149,6 +156,9 @@ namespace Wagenheimer.UnityUtils.Editor
                     break;
                 case Tab.Cleanup:
                     _contentContainer.Add(new CleanupSuiteView());
+                    break;
+                case Tab.ThirdPartySlimmer:
+                    _contentContainer.Add(new ThirdPartySlimmerView());
                     break;
                 case Tab.AndroidTools:
                     _contentContainer.Add(BuildAndroidToolsView());
@@ -290,6 +300,7 @@ namespace Wagenheimer.UnityUtils.Editor
             AddModuleItem(modulesBody, "Bootstrap Scene Kit", "Manages additive persistent singletons, automatic startup scene ordering, and clean play mode transitions.");
             AddModuleItem(modulesBody, "Bootstrap Diagnostic Checker", "Automated verification of build settings, scene paths, settings asset location, and prefab leak detection.");
             AddModuleItem(modulesBody, "Project Cleanup Suite", "Comprehensive scanners and cleaners for AudioListeners, missing scripts, TMP CanvasRenderers, and obsolete components.");
+            AddModuleItem(modulesBody, "Third-Party Asset Slimmer", "GUID-based usage audit of vendor packs, in-place slimming, extract-used-only relocation, and Built-in to URP shader porting.");
             AddModuleItem(modulesBody, "Android Tools", "Quick inspection and toggling of the AAB 200MB size threshold warning.");
 
             scroll.Add(modulesCard);

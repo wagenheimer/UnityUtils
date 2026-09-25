@@ -2,7 +2,7 @@
   "name": "com.wagenheimer.unityutils",
   "version": "1.12.0",
   "displayName": "Unity Utils",
-  "description": "Unity Editor productivity utilities: UI Toolkit dashboard, Bootstrap Scene Kit with diagnostic checker and one-click fixes, comprehensive Project Cleanup Suite, and Android App Bundle tools.",
+  "description": "Unity Editor productivity utilities: UI Toolkit dashboard, Bootstrap Scene Kit with diagnostic checker and one-click fixes, comprehensive Project Cleanup Suite, Third-Party Asset Slimmer (usage audit, extract-used-only, URP shader port), and Android App Bundle tools.",
   "unity": "2021.3",
   "author": {
     "name": "Cezar Wagenheimer",
@@ -14,7 +14,10 @@
     "audio",
     "textmeshpro",
     "editor-tools",
-    "cleanup"
+    "cleanup",
+    "third-party",
+    "2dxfx",
+    "urp"
   ],
   "category": "Tools",
   "dependencies": {

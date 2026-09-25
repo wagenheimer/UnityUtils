@@ -23,6 +23,12 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
   - **Animator Transition Auditor**: Audits and auto-repairs invalid animator state transitions missing exit times or conditions.
   - **Legacy Component Modernizer**: Re-serializes scenes and prefabs using the active Unity engine format.
   - **Unused Codeless IAP Button Cleaner**: Strips empty, disconnected `IAPButton` components (active when `com.unity.purchasing` is installed).
+- **Third-Party Asset Slimmer (`ThirdPartySlimmerView`)**:
+  - **GUID-based usage audit** resolving `m_Script`/`m_Shader` references across scenes, prefabs and materials, while ignoring the pack's own Examples/Doc content so bundled demos do not make everything look "used".
+  - **Slim In-Place**: deletes unused scripts, shaders and `Resources` assets, relocates editor-only inspector resources from `Resources/` into `Editor/Resources/` (out of the build), and can drop Examples/Doc/ExtraShaders folders.
+  - **Extract Used Only**: relocates the referenced subset to `Assets/ThirdParty/<Pack>-Slim` with asset GUIDs preserved and removes the original pack.
+  - **URP Shader Port**: rewrites used Built-in shaders to URP in place, keeping shader names and GUIDs; classic vertex/fragment shaders are converted mechanically and legacy surface shaders are transpiled with a manual-review flag. Originals are backed up for one-click restore.
+  - Ships with a built-in 2DxFX profile and auto-detection.
 - **Android App Bundle Size Warning Tool**:
   - Inspects and toggles Unity's built-in 200 MB App Bundle size validation warning (`Player Settings > Other Settings > Warn about App Bundle size`) directly from menus or automated CI build scripts.
 - **Runtime Optimization Helpers**:
@@ -56,14 +62,15 @@ Tools > Wagenheimer > Unity Utils > Check for Updates...
 
 Open the central UI Toolkit dashboard via **`Tools > Wagenheimer > Unity Utils > Dashboard...`**.
 
-The dashboard is structured into four primary workspaces:
+The dashboard is structured into five primary workspaces:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │  Unity Utils  v1.9.0                                                   │
 │  Bootstrap Scene Kit, Diagnostics & Optimization Suite                 │
 ├────────────────────────────────────────────────────────────────────────┤
-│  [Bootstrap & Diagnostics]  [Project Cleanup]  [Android]  [About]      │
+│  [Bootstrap & Diagnostics]  [Project Cleanup]  [Third-Party Slim]      │
+│  [Android & Tools]  [About]                                            │
 ├────────────────────────────────────────────────────────────────────────┤
 │  [ 8 Passed ]   [ 0 Warnings ]   [ 0 Errors ]                          │
 │                                                                        │
@@ -94,7 +101,13 @@ The dashboard is structured into four primary workspaces:
 - **Full Project Audit**: Executes all diagnostic scanners with a single click, providing live counters for audio duplicates, missing scripts, and TMP redundancies.
 - **Dedicated Cleaner Modules**: Individual cards with granular actions for active scenes, all scenes, or project prefabs.
 
-### 3. Android & Tools
+### 3. Third-Party Slimmer
+- **Usage Audit**: set the package root (auto-detected for 2DxFX) and run a GUID-based audit that reports used vs. unused scripts, shaders and `Resources` assets, plus the reclaimable build footprint.
+- **Slim In-Place**: confirmation-gated deletion of unused assets, moving editor-only resources out of the build, and optional removal of Examples/Doc/ExtraShaders folders.
+- **Extract Used Only**: moves the referenced subset to `Assets/ThirdParty/<Pack>-Slim` preserving GUIDs and deletes the original pack.
+- **URP Shader Port**: rewrites used Built-in shaders to URP in place, preserving shader names and GUIDs, with automatic backup and restore.
+
+### 4. Android & Tools
 - **App Bundle Size Warning**:
   - View current state (`ENABLED` / `DISABLED`) and validation threshold (e.g. 200 MB).
   - One-click toggling and scriptable API:
@@ -103,7 +116,7 @@ The dashboard is structured into four primary workspaces:
     ```
 - **SingleAudioListener & CLZF2**: Documentation and direct links to runtime utilities.
 
-### 4. About & Updates
+### 5. About & Updates
 - Installed version display, release notes, license, and direct update checks via `PackageHubWindow`.
 
 ---
@@ -121,6 +134,7 @@ All commands are grouped under **`Tools > Wagenheimer > Unity Utils`**:
 | **Bootstrap > Remove Persistent Prefabs from Other Scenes** | Priority 123 | Scans all non-bootstrap scenes and strips duplicated persistent singletons. |
 | **Bootstrap > Remove Persistent Prefabs from Active Scene** | Priority 124 | Strips persistent singletons from the currently open scene. |
 | **Cleanup > Open Project Cleanup...** | Priority 140 | Opens the Project Cleanup Suite in the dashboard. |
+| **Third-Party > Open Third-Party Slimmer...** | Priority 146 | Opens the Third-Party Asset Slimmer dashboard tab. |
 | **Android > App Bundle Size Warning > Disable** | Priority 160 | Disables Unity's AAB size warning. |
 | **Android > App Bundle Size Warning > Enable** | Priority 161 | Enables Unity's AAB size warning. |
 | **Android > App Bundle Size Warning > Toggle** | Priority 162 | Toggles the AAB size warning state (shows checkmark). |
