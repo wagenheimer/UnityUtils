@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.14.2] - 2026-09-26
+
+### Changed
+- chore: Set Dashboard priority = 0 as primary menu option
+
 ## [1.14.1] - 2026-09-25
 
 ### Fixed
