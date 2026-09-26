@@ -31,7 +31,7 @@ namespace Wagenheimer.UnityUtils.Editor
         private VisualElement _contentContainer;
         private Button[] _tabButtons;
 
-        [MenuItem("Tools/Wagenheimer/Unity Utils/Dashboard...", priority = 100)]
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Dashboard...", priority = 0)]
         public static void OpenDashboard()
         {
             Open(Tab.Bootstrap);
