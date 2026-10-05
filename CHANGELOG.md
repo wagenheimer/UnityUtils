@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.15.0] - 2026-10-05
+
+### Added
+- feat(debug): `DebugConsoleOverlay` — reusable in-game UI Toolkit console that captures all Unity debug logging (`Debug.Log`/`LogWarning`/`LogError`/exceptions) with level filters (Log/Warning/Error), per-entry expandable stack traces, Clear/Copy, scroll with auto-tail, minimize/maximize, zoom (A-/A+) and a floating toggle (hotkey, default `F9`). Auto-initializes in the Editor and Development Builds and ships its own `PanelSettings` + theme (`Resources/Wagenheimer/UnityUtilsDebugTheme.tss`) so it renders in player builds.
+
 ## [1.14.2] - 2026-09-26
 
 ### Changed
