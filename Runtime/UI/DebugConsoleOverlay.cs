@@ -82,7 +82,9 @@ namespace Wagenheimer.UnityUtils
         private bool _isMaximized;
         private Vector2 _dragStartPointer;
         private Vector2 _dragStartWindowPos;
-        private StyleLength _restoreLeft, _restoreTop, _restoreWidth, _restoreHeight, _restoreMaxHeight;
+        private bool _pillDragging, _pillDragged;
+        private Vector2 _pillDragStartPointer, _pillDragStartPos;
+        private StyleLength _restoreLeft, _restoreRight, _restoreTop, _restoreBottom, _restoreWidth, _restoreHeight, _restoreMaxHeight;
 
         private static readonly Color Accent = new Color(0.35f, 0.80f, 0.95f);
         private static readonly Color TextMuted = new Color(0.65f, 0.68f, 0.75f);
@@ -253,7 +255,7 @@ namespace Wagenheimer.UnityUtils
             _pill.pickingMode = PickingMode.Position;
             var st = _pill.style;
             st.position = Position.Absolute;
-            st.left = 18;
+            st.right = 18;
             st.bottom = 18;
             st.height = 34;
             st.flexDirection = FlexDirection.Row;
@@ -283,7 +285,38 @@ namespace Wagenheimer.UnityUtils
             _pillCounts.style.marginLeft = 6;
             _pill.Add(_pillCounts);
 
-            _pill.RegisterCallback<PointerUpEvent>(_ => SetOpen(true));
+            _pill.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button != 0) return;
+                _pillDragging = true;
+                _pillDragged = false;
+                _pillDragStartPointer = (Vector2)evt.position;
+                _pillDragStartPos = new Vector2(_pill.resolvedStyle.left, _pill.resolvedStyle.top);
+                _pill.CapturePointer(evt.pointerId);
+                evt.StopPropagation();
+            });
+            _pill.RegisterCallback<PointerMoveEvent>(evt =>
+            {
+                if (!_pillDragging) return;
+                var delta = (Vector2)evt.position - _pillDragStartPointer;
+                if (delta.sqrMagnitude > 16f) _pillDragged = true;
+                if (_pillDragged)
+                {
+                    _pill.style.right = StyleKeyword.Auto;
+                    _pill.style.bottom = StyleKeyword.Auto;
+                    _pill.style.left = Mathf.Max(0, _pillDragStartPos.x + delta.x);
+                    _pill.style.top = Mathf.Max(0, _pillDragStartPos.y + delta.y);
+                }
+                evt.StopPropagation();
+            });
+            _pill.RegisterCallback<PointerUpEvent>(evt =>
+            {
+                if (!_pillDragging) return;
+                _pillDragging = false;
+                _pill.ReleasePointer(evt.pointerId);
+                evt.StopPropagation();
+                if (!_pillDragged) SetOpen(true);
+            });
             _root.Add(_pill);
         }
 
@@ -295,7 +328,7 @@ namespace Wagenheimer.UnityUtils
             var st = _window.style;
             st.position = Position.Absolute;
             st.left = 24;
-            st.top = 30;
+            st.bottom = 24;
             st.width = 620;
             st.maxWidth = new StyleLength(new Length(96, LengthUnit.Percent));
             st.maxHeight = new StyleLength(new Length(86, LengthUnit.Percent));
@@ -617,15 +650,15 @@ namespace Wagenheimer.UnityUtils
             var st = _window.style;
             if (_isMaximized)
             {
-                _restoreLeft = st.left; _restoreTop = st.top;
+                _restoreLeft = st.left; _restoreRight = st.right; _restoreTop = st.top; _restoreBottom = st.bottom;
                 _restoreWidth = st.width; _restoreHeight = st.height; _restoreMaxHeight = st.maxHeight;
-                st.left = 0; st.top = 0; st.right = 0;
+                st.left = 0; st.right = 0; st.top = 0; st.bottom = 0;
                 st.width = new StyleLength(new Length(100, LengthUnit.Percent));
                 st.height = new StyleLength(new Length(100, LengthUnit.Percent));
                 st.maxHeight = new StyleLength(new Length(100, LengthUnit.Percent));
                 return;
             }
-            st.left = _restoreLeft; st.top = _restoreTop; st.right = StyleKeyword.Auto;
+            st.left = _restoreLeft; st.right = _restoreRight; st.top = _restoreTop; st.bottom = _restoreBottom;
             st.width = _restoreWidth; st.height = _restoreHeight; st.maxHeight = _restoreMaxHeight;
         }
 
