@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.15.1] - 2026-10-05
+
+### Fixed
+- fix(debug): `DebugConsoleOverlay` no longer overlaps the IAP debug overlay — the floating pill now defaults to the bottom-right corner and is draggable; the window opens bottom-left so it doesn't stack on the top-left IAP/BuildPipeline panels.
+
 ## [1.15.0] - 2026-10-05
 
 ### Added
