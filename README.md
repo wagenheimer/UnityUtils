@@ -34,6 +34,7 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
 - **Runtime Optimization Helpers**:
   - `SingleAudioListener`: Enforces a single active AudioListener at runtime across additively loaded scenes.
   - `CLZF2`: Zero-dependency, high-speed LZF byte compression and decompression routines.
+  - `DebugConsoleOverlay`: Reusable in-game **UI Toolkit console** that captures everything logged through `Debug.Log`/`LogWarning`/`LogError`/exceptions. Level filters (Log/Warning/Error), per-entry stack traces (click to expand), Clear/Copy, scroll with auto-tail, minimize/maximize, zoom (A-/A+) and a floating toggle (hotkey, default `F9`). Auto-initializes in the Editor and Development Builds and ships its own `PanelSettings` + theme so it renders in player builds — no per-project setup.
 
 ---
 
