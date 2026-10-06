@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.15.3] - 2026-10-06
+
+### Changed
+- chore: add missing AGENTS.md meta file
+
 ## [1.15.2] - 2026-10-06
 
 ### Fixed
