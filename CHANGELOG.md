@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.15.2] - 2026-10-06
+
+### Fixed
+- separate leading icons from button text
+
 ## [1.15.1] - 2026-10-05
 
 ### Fixed
