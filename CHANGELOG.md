@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.15.5] - 2026-10-08
+
+### Fixed
+- fail checker when bootstrap is first scene and offer auto-fix
+
 ## [1.15.4] - 2026-10-08
 
 ### Fixed
