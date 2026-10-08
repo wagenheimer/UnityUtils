@@ -14,7 +14,7 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
 - **Bootstrap Scene Kit & Diagnostic Checker**:
   - Additively loads persistent singletons (`AudioManager`, `GameManager`, UI canvases, etc.) before any other scene's `Awake` runs.
   - Automatically handles playing directly from the bootstrap scene in Editor Play Mode by loading the first Build Settings scene additively.
-  - **Diagnostic Checker (`BootstrapChecker`)**: Audits settings asset placement, scene presence on disk, build index 0 configuration, and detects leaking prefabs in gameplay scenes with **One-Click Quick Fixes**.
+  - **Diagnostic Checker (`BootstrapChecker`)**: Audits settings asset placement, scene presence on disk, Build Settings order (bootstrap must NOT be the first scene), and detects leaking prefabs in gameplay scenes with **One-Click Quick Fixes**.
 - **Project Cleanup Suite**:
   - **Audio Listener Cleaner**: Removes duplicate `AudioListener` components across scenes and prefabs, enforcing a single persistent listener.
   - **Missing Script Cleaner**: Detects and strips missing MonoBehaviour script references across all scenes and prefabs.
@@ -78,7 +78,7 @@ The dashboard is structured into five primary workspaces:
 │  Bootstrap Diagnostic Engine             [Run Full Scan]  [Fix All]   │
 │  ├─ BootstrapSettings Located                 [PASS]                   │
 │  ├─ Bootstrap Scene Found ('bootstrap')       [PASS]                   │
-│  ├─ Bootstrap Scene in Build Settings (#0)    [PASS]                   │
+│  ├─ Bootstrap Scene in Build Settings (#1)    [PASS]                   │
 │  └─ No Leaking Persistent Prefabs             [PASS]                   │
 │                                                                        │
 │  Bootstrap Scene Operations                                            │
@@ -90,7 +90,7 @@ The dashboard is structured into five primary workspaces:
 - **Automated Diagnostic Rules**:
   - `BootstrapSettings Asset Location`: Verifies placement inside a `Resources` directory (`Assets/Resources/Wagenheimer/BootstrapSettings.asset` or `Assets/Resources/BootstrapSettings.asset`).
   - `Scene File Verification`: Confirms the target scene file exists on disk.
-  - `Build Settings Validation`: Validates that the bootstrap scene is present, enabled, and assigned to **Build Index 0**.
+  - `Build Settings Validation`: Validates that the bootstrap scene is present and enabled, and **fails (Error)** if it is the first scene: it must come *after* your startup scene so `BootstrapLoader` attaches it additively instead of showing a camera-less black scene. The Fix button reorders it automatically.
   - `Prefab References`: Checks for empty or null entries in the persistent prefabs array.
   - `Scene Leak Detection`: Scans all gameplay scenes to find and strip accidental duplicates of persistent prefabs.
 - **One-Click Quick Fixes**:

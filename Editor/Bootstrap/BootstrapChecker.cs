@@ -211,6 +211,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     FixAction = () =>
                     {
                         AddSceneToBuildSettings(scenePath, setAsFirst: false);
+                        MoveBootstrapAfterFirstScene(scenePath);
                     }
                 });
             }
@@ -227,35 +228,63 @@ namespace Wagenheimer.UnityUtils.Editor
                     FixAction = () =>
                     {
                         EnableSceneInBuildSettings(scenePath);
+                        MoveBootstrapAfterFirstScene(scenePath);
                     }
-                });
-            }
-            else if (buildIndex > 0)
-            {
-                var firstSceneName = scenes.Length > 0 ? Path.GetFileNameWithoutExtension(scenes[0].path) : "unknown";
-                report.Items.Add(new DiagnosticItem
-                {
-                    Id = "bootstrap-build-settings-additive-ok",
-                    Category = "Build Settings",
-                    Title = $"Bootstrap Scene in Build Settings (Additive Mode, Index {buildIndex})",
-                    Description = $"Scene is active at index {buildIndex}. It loads additively in the background before your startup scene (Index 0: '{firstSceneName}').",
-                    Severity = DiagnosticSeverity.Pass,
-                    CanFix = false
                 });
             }
             else
             {
-                var nextSceneName = scenes.Length > 1 ? Path.GetFileNameWithoutExtension(scenes[1].path) : "none";
+                CheckBootstrapNotFirstScene(report, scenePath);
+            }
+        }
+
+        /// <summary>
+        /// The bootstrap scene must NOT be the first enabled scene: <see cref="BootstrapLoader"/> only
+        /// attaches it additively (before any Awake) when the build starts from a content scene. Starting
+        /// from the bootstrap itself shows an empty, camera-less scene (black screen) while the heavy
+        /// persistent-object initialization runs, and then streams the real first scene in afterwards.
+        /// </summary>
+        private static void CheckBootstrapNotFirstScene(DiagnosticReport report, string scenePath)
+        {
+            var enabledPaths = EditorBuildSettings.scenes
+                .Where(s => s.enabled)
+                .Select(s => s.path)
+                .ToList();
+
+            var firstScenePath = enabledPaths.Count > 0 ? enabledPaths[0] : null;
+            var bootstrapIsFirst = string.Equals(firstScenePath, scenePath, StringComparison.OrdinalIgnoreCase);
+
+            if (!bootstrapIsFirst)
+            {
+                var firstSceneName = Path.GetFileNameWithoutExtension(firstScenePath ?? "none");
+                var bootstrapIndex = enabledPaths.FindIndex(p => string.Equals(p, scenePath, StringComparison.OrdinalIgnoreCase));
                 report.Items.Add(new DiagnosticItem
                 {
-                    Id = "bootstrap-build-settings-index-zero",
+                    Id = "bootstrap-build-settings-additive-ok",
                     Category = "Build Settings",
-                    Title = "Bootstrap Scene at Index 0 (First Scene)",
-                    Description = $"Bootstrap is set as the initial scene. BootstrapLoader will auto-transition to the first content scene ('{nextSceneName}').",
+                    Title = $"Bootstrap Scene in Build Settings (Additive Mode, Index {bootstrapIndex})",
+                    Description = $"Loads additively before your startup scene (Index 0: '{firstSceneName}').",
                     Severity = DiagnosticSeverity.Pass,
                     CanFix = false
                 });
+                return;
             }
+
+            var hasContentScene = enabledPaths.Count > 1;
+            var nextSceneName = hasContentScene ? Path.GetFileNameWithoutExtension(enabledPaths[1]) : "none";
+            report.Items.Add(new DiagnosticItem
+            {
+                Id = "bootstrap-build-settings-index-zero",
+                Category = "Build Settings",
+                Title = "Bootstrap Scene is the First Scene (Index 0)",
+                Description = hasContentScene
+                    ? $"The build starts on the bootstrap scene, which has no camera: players see a black screen while persistent objects initialize, and '{nextSceneName}' only streams in afterwards. " +
+                      $"Keep the bootstrap enabled but move it after your startup scene so BootstrapLoader attaches it additively."
+                    : "The bootstrap scene is the only enabled scene. Add your startup scene to Build Settings and keep it before the bootstrap.",
+                Severity = DiagnosticSeverity.Error,
+                CanFix = hasContentScene,
+                FixAction = hasContentScene ? () => MoveBootstrapAfterFirstScene(scenePath) : null
+            });
         }
 
         private static void CheckPersistentPrefabsArray(DiagnosticReport report, BootstrapSettings settings)
@@ -439,6 +468,34 @@ namespace Wagenheimer.UnityUtils.Editor
             }
             EditorBuildSettings.scenes = scenes;
             Debug.Log($"[BootstrapChecker] Enabled '{scenePath}' in Build Settings.");
+        }
+
+        /// <summary>
+        /// Re-orders Build Settings so the bootstrap scene sits right after the first enabled content
+        /// scene. No-op (with a warning) when there is no other enabled scene to put in front of it.
+        /// </summary>
+        private static void MoveBootstrapAfterFirstScene(string scenePath)
+        {
+            var scenes = EditorBuildSettings.scenes.ToList();
+            var bootstrapEntry = scenes.FirstOrDefault(s => string.Equals(s.path, scenePath, StringComparison.OrdinalIgnoreCase));
+            if (bootstrapEntry == null)
+                return;
+
+            var firstContentIndex = scenes.FindIndex(s =>
+                s.enabled && !string.Equals(s.path, scenePath, StringComparison.OrdinalIgnoreCase));
+            if (firstContentIndex < 0)
+            {
+                Debug.LogWarning("[BootstrapChecker] No other enabled scene in Build Settings to place before the bootstrap scene.");
+                return;
+            }
+
+            scenes.Remove(bootstrapEntry);
+            var insertIndex = scenes.FindIndex(s =>
+                s.enabled && !string.Equals(s.path, scenePath, StringComparison.OrdinalIgnoreCase)) + 1;
+            scenes.Insert(insertIndex, bootstrapEntry);
+
+            EditorBuildSettings.scenes = scenes.ToArray();
+            Debug.Log($"[BootstrapChecker] Moved '{scenePath}' to Build Settings index {insertIndex} (after '{scenes[insertIndex - 1].path}').");
         }
 
         private static void CleanNullPrefabs(BootstrapSettings settings)

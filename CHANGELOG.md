@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.15.4] - 2026-10-08
+
+### Fixed
+- fix(bootstrap): `BootstrapChecker` now reports an **Error** (previously a Pass) when the bootstrap scene is the first enabled scene in Build Settings, since the build then starts on a camera-less scene (black screen on mobile) instead of attaching the bootstrap additively before the startup scene. The Fix button moves it right after the first content scene; the "not in Build Settings" / "disabled" fixes also keep it out of slot 0.
+
 ## [1.15.3] - 2026-10-06
 
 ### Changed
