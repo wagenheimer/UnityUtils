@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.16.0] - 2026-10-21
+
+### Added
+- feat(optimization): **Mobile Optimizer** dashboard tab (`Tools/Wagenheimer/Unity Utils/Optimization/Open Mobile Optimizer...`). Audits only the assets that ship in the build (Build Settings scenes + `Resources` dependency graph) for Android and iOS: crunched textures, textures without a mobile override, textures above the chosen max size, sprites with mipmaps, audio without a mobile override, long clips not streaming, Decompress On Load on heavy clips, Android Texture Compression Formats with ETC1, and ARMv7. Every finding has a Fix (importer API + reimport, batched with a cancelable progress bar) and "Fix All Safe Issues" applies warnings/errors; a best-practices card explains each rule.
+
 ## [1.15.5] - 2026-10-08
 
 ### Fixed

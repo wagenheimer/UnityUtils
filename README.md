@@ -29,6 +29,11 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
   - **Extract Used Only**: relocates the referenced subset to `Assets/ThirdParty/<Pack>-Slim` with asset GUIDs preserved and removes the original pack.
   - **URP Shader Port**: rewrites used Built-in shaders to URP in place, keeping shader names and GUIDs; classic vertex/fragment shaders are converted mechanically and legacy surface shaders are transpiled with a manual-review flag. Originals are backed up for one-click restore.
   - Ships with a built-in 2DxFX profile and auto-detection.
+- **Mobile Optimizer (`MobileOptimizerView`)**: audits the textures, audio clips and Android settings that actually ship in the build (Build Settings scenes + `Resources`, via the dependency graph) against mobile best practices, with per-item fixes and "Fix All Safe":
+  - **Textures**: crunch on mobile (decompressed on the CPU at load time), missing Android/iOS overrides (project default, often legacy ETC), textures above the max size (512/1024/2048), sprites with mipmaps. Fix: ASTC 6x6 colour / 5x5 normal maps / 4x4 UI, no crunch, size only lowered.
+  - **Audio**: clips without a mobile override, long clips (>= 20 s) not streaming, Decompress On Load above ~1 MB. Fix: Vorbis, Streaming + Load In Background for long clips, Compressed In Memory at 22 kHz for SFX.
+  - **Android project**: Texture Compression Formats containing ETC1 (fix: ASTC + ETC2) and ARMv7 (reported as Info, fix asks for confirmation).
+  - Built-in best-practices guide explaining every rule.
 - **Android App Bundle Size Warning Tool**:
   - Inspects and toggles Unity's built-in 200 MB App Bundle size validation warning (`Player Settings > Other Settings > Warn about App Bundle size`) directly from menus or automated CI build scripts.
 - **Runtime Optimization Helpers**:
@@ -108,7 +113,12 @@ The dashboard is structured into five primary workspaces:
 - **Extract Used Only**: moves the referenced subset to `Assets/ThirdParty/<Pack>-Slim` preserving GUIDs and deletes the original pack.
 - **URP Shader Port**: rewrites used Built-in shaders to URP in place, preserving shader names and GUIDs, with automatic backup and restore.
 
-### 4. Android & Tools
+### 4. Mobile Optimizer
+- Choose platforms (Android / iOS) and the max texture size, then **Scan Build Assets**.
+- Each finding lists the affected assets and why it matters; **Fix** applies it through the importer API (SaveAndReimport), **Fix All Safe Issues** applies every warning/error (Info items such as ARMv7 stay manual).
+- Measure on a device afterwards: scene load time and memory (Memory Profiler).
+
+### 5. Android & Tools
 - **App Bundle Size Warning**:
   - View current state (`ENABLED` / `DISABLED`) and validation threshold (e.g. 200 MB).
   - One-click toggling and scriptable API:
@@ -117,7 +127,7 @@ The dashboard is structured into five primary workspaces:
     ```
 - **SingleAudioListener & CLZF2**: Documentation and direct links to runtime utilities.
 
-### 5. About & Updates
+### 6. About & Updates
 - Installed version display, release notes, license, and direct update checks via `PackageHubWindow`.
 
 ---
@@ -136,6 +146,7 @@ All commands are grouped under **`Tools > Wagenheimer > Unity Utils`**:
 | **Bootstrap > Remove Persistent Prefabs from Active Scene** | Priority 124 | Strips persistent singletons from the currently open scene. |
 | **Cleanup > Open Project Cleanup...** | Priority 140 | Opens the Project Cleanup Suite in the dashboard. |
 | **Third-Party > Open Third-Party Slimmer...** | Priority 146 | Opens the Third-Party Asset Slimmer dashboard tab. |
+| **Optimization > Open Mobile Optimizer...** | Priority 150 | Opens the Mobile Optimizer dashboard tab. |
 | **Android > App Bundle Size Warning > Disable** | Priority 160 | Disables Unity's AAB size warning. |
 | **Android > App Bundle Size Warning > Enable** | Priority 161 | Enables Unity's AAB size warning. |
 | **Android > App Bundle Size Warning > Toggle** | Priority 162 | Toggles the AAB size warning state (shows checkmark). |
