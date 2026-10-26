@@ -126,17 +126,22 @@ namespace Wagenheimer.UnityUtils.Editor
                 Details = new List<string>()
             };
 
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return scan;
+
             var preferredPrefabPath = GetPreferredPrefabPath();
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
             // Scan Scenes
             var originalSetup = EditorSceneManager.GetSceneManagerSetup();
             try
             {
-                for (int i = 0; i < sceneGuids.Length; i++)
+                for (int i = 0; i < scenePaths.Length; i++)
                 {
-                    var scenePath = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
-                    var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                    var scenePath = scenePaths[i];
+                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
+                        continue;
+
                     var listeners = scene.GetRootGameObjects()
                         .SelectMany(root => root.GetComponentsInChildren<AudioListener>(true))
                         .ToList();
@@ -157,10 +162,10 @@ namespace Wagenheimer.UnityUtils.Editor
             }
 
             // Scan Prefabs
-            var prefabGuids = AssetDatabase.FindAssets("t:Prefab");
-            for (int i = 0; i < prefabGuids.Length; i++)
+            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
+            for (int i = 0; i < prefabPaths.Length; i++)
             {
-                var prefabPath = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
+                var prefabPath = prefabPaths[i];
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefab == null) continue;
 
@@ -179,16 +184,19 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static CleanResult CleanAllScenes(bool removeAllNonPersistent, string bootstrapSceneNameToSkip = null)
         {
+            var result = new CleanResult();
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return result;
+
             var preferredPrefabPath = GetPreferredPrefabPath();
             var setup = EditorSceneManager.GetSceneManagerSetup();
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
-            var result = new CleanResult();
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
             try
             {
-                for (var i = 0; i < sceneGuids.Length; i++)
+                for (var i = 0; i < scenePaths.Length; i++)
                 {
-                    var scenePath = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
+                    var scenePath = scenePaths[i];
                     var sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
 
                     if (!string.IsNullOrEmpty(bootstrapSceneNameToSkip) &&
@@ -198,10 +206,12 @@ namespace Wagenheimer.UnityUtils.Editor
                     }
 
                     if (EditorUtility.DisplayCancelableProgressBar("Removing Duplicate Audio Listeners (Scenes)",
-                            scenePath, (float)i / sceneGuids.Length))
+                            scenePath, (float)i / scenePaths.Length))
                         break;
 
-                    var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
+                        continue;
+
                     var removed = RemoveDuplicatesInScene(scene, preferredPrefabPath, removeAllNonPersistent);
                     if (removed <= 0)
                         continue;
@@ -225,16 +235,16 @@ namespace Wagenheimer.UnityUtils.Editor
         public static CleanResult CleanAllPrefabs(bool removeAllNonPersistent)
         {
             var preferredPrefabPath = GetPreferredPrefabPath();
-            var prefabGuids = AssetDatabase.FindAssets("t:Prefab");
+            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
             var result = new CleanResult();
 
             try
             {
-                for (var i = 0; i < prefabGuids.Length; i++)
+                for (var i = 0; i < prefabPaths.Length; i++)
                 {
-                    var prefabPath = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
+                    var prefabPath = prefabPaths[i];
                     if (EditorUtility.DisplayCancelableProgressBar("Removing Duplicate Audio Listeners (Prefabs)",
-                            prefabPath, (float)i / prefabGuids.Length))
+                            prefabPath, (float)i / prefabPaths.Length))
                         break;
 
                     var removed = RemoveDuplicatesInPrefab(prefabPath, preferredPrefabPath, removeAllNonPersistent);
@@ -303,7 +313,9 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static int RemoveDuplicatesInPrefab(string prefabPath, string preferredPrefabPath, bool removeAllNonPersistent)
         {
-            var root = PrefabUtility.LoadPrefabContents(prefabPath);
+            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+            if (root == null) return 0;
+
             try
             {
                 var listeners = root.GetComponentsInChildren<AudioListener>(true).ToList();
@@ -324,7 +336,7 @@ namespace Wagenheimer.UnityUtils.Editor
                         }
                     }
                     if (count > 0)
-                        PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                        CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
                     return count;
                 }
 
@@ -344,7 +356,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 }
 
                 if (removed > 0)
-                    PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
 
                 return removed;
             }

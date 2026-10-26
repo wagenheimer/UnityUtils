@@ -86,19 +86,20 @@ namespace Wagenheimer.UnityUtils.Editor
                 Details = new List<string>()
             };
 
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return scan;
+
             var originalSetup = EditorSceneManager.GetSceneManagerSetup();
             try
             {
-                var scenePaths = AssetDatabase.FindAssets("t:Scene")
-                    .Select(AssetDatabase.GUIDToAssetPath)
-                    .Distinct()
-                    .OrderBy(p => p)
-                    .ToArray();
+                var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
                 for (int i = 0; i < scenePaths.Length; i++)
                 {
                     var path = scenePaths[i];
-                    var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+                    if (!CleanupAssetUtility.TryOpenScene(path, out _))
+                        continue;
+
                     var count = CountUnusedInCurrentScene();
                     if (count > 0)
                     {
@@ -108,11 +109,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     }
                 }
 
-                var prefabPaths = AssetDatabase.FindAssets("t:Prefab")
-                    .Select(AssetDatabase.GUIDToAssetPath)
-                    .Distinct()
-                    .OrderBy(p => p)
-                    .ToArray();
+                var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
 
                 for (int i = 0; i < prefabPaths.Length; i++)
                 {
@@ -138,15 +135,14 @@ namespace Wagenheimer.UnityUtils.Editor
         public static CleanResult CleanAll()
         {
             var result = new CleanResult();
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return result;
+
             var originalSetup = EditorSceneManager.GetSceneManagerSetup();
 
             try
             {
-                var scenePaths = AssetDatabase.FindAssets("t:Scene")
-                    .Select(AssetDatabase.GUIDToAssetPath)
-                    .Distinct()
-                    .OrderBy(p => p)
-                    .ToArray();
+                var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
                 for (int i = 0; i < scenePaths.Length; i++)
                 {
@@ -155,7 +151,9 @@ namespace Wagenheimer.UnityUtils.Editor
                             $"Scene: {path}", (float)i / (scenePaths.Length * 2)))
                         break;
 
-                    var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
+                        continue;
+
                     var fixedInScene = FixInCurrentScene();
                     if (fixedInScene > 0)
                     {
@@ -166,11 +164,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     }
                 }
 
-                var prefabPaths = AssetDatabase.FindAssets("t:Prefab")
-                    .Select(AssetDatabase.GUIDToAssetPath)
-                    .Distinct()
-                    .OrderBy(p => p)
-                    .ToArray();
+                var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
 
                 for (int i = 0; i < prefabPaths.Length; i++)
                 {
@@ -227,7 +221,9 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static int CountUnusedInPrefab(string prefabPath)
         {
-            var root = PrefabUtility.LoadPrefabContents(prefabPath);
+            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+            if (root == null) return 0;
+
             try
             {
                 int count = 0;
@@ -245,7 +241,9 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static int FixInPrefab(string prefabPath)
         {
-            var root = PrefabUtility.LoadPrefabContents(prefabPath);
+            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+            if (root == null) return 0;
+
             try
             {
                 int fixedCount = 0;
@@ -253,7 +251,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     fixedCount += RemoveIfUnused(button);
 
                 if (fixedCount > 0)
-                    PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
 
                 return fixedCount;
             }

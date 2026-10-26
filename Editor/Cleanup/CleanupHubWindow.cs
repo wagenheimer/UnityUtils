@@ -115,6 +115,11 @@ namespace Wagenheimer.UnityUtils.Editor
                 LegacyComponentCleaner.ResaveAllScenesAndPrefabs();
                 _statusMessage = "Project modernized – scenes, prefabs resaved and assets reserialized.";
             }
+            if (GUILayout.Button("Resave Legacy Plugin Importers (Upgrade .meta)"))
+            {
+                var updated = LegacyComponentCleaner.ResaveLegacyPluginImporters();
+                _statusMessage = $"Re-saved {updated} legacy plugin importer(s).";
+            }
         }
         #endregion
 

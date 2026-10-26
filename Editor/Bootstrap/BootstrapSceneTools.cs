@@ -140,25 +140,29 @@ namespace Wagenheimer.UnityUtils.Editor
             if (targetGuids == null)
                 return;
 
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return;
+
             var bootstrapScenePath = ScenePathFor(settings.BootstrapSceneName);
             var setup = EditorSceneManager.GetSceneManagerSetup();
 
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
             var changedScenes = 0;
 
             try
             {
-                for (var i = 0; i < sceneGuids.Length; i++)
+                for (var i = 0; i < scenePaths.Length; i++)
                 {
-                    var scenePath = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
+                    var scenePath = scenePaths[i];
                     if (scenePath == bootstrapScenePath)
                         continue;
 
                     if (EditorUtility.DisplayCancelableProgressBar("Removing Persistent Prefabs",
-                            scenePath, (float)i / sceneGuids.Length))
+                            scenePath, (float)i / scenePaths.Length))
                         break;
 
-                    var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
+                        continue;
 
                     if (!RemoveFromScene(scene, targetGuids))
                         continue;

@@ -348,20 +348,25 @@ namespace Wagenheimer.UnityUtils.Editor
             if (targetGuids.Count == 0)
                 return;
 
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return;
+
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
             var leakingScenes = new List<string>();
 
             // Quick check: check if any non-bootstrap scene contains persistent prefab instances
             var setup = EditorSceneManager.GetSceneManagerSetup();
             try
             {
-                for (var i = 0; i < sceneGuids.Length; i++)
+                for (var i = 0; i < scenePaths.Length; i++)
                 {
-                    var path = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
+                    var path = scenePaths[i];
                     if (string.Equals(path, bootstrapScenePath, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
+                        continue;
+
                     var hasLeak = false;
 
                     foreach (var root in scene.GetRootGameObjects())

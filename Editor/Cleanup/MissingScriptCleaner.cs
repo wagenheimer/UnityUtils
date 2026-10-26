@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -106,15 +105,19 @@ namespace Wagenheimer.UnityUtils.Editor
                 Details = new List<string>()
             };
 
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return scan;
+
             var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
             try
             {
-                for (int i = 0; i < sceneGuids.Length; i++)
+                for (int i = 0; i < scenePaths.Length; i++)
                 {
-                    var scenePath = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
-                    var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                    var scenePath = scenePaths[i];
+                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
+                        continue;
 
                     var count = CountMissingInScene(scene);
                     if (count > 0)
@@ -131,10 +134,10 @@ namespace Wagenheimer.UnityUtils.Editor
                     EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
             }
 
-            var prefabGuids = AssetDatabase.FindAssets("t:Prefab");
-            for (int i = 0; i < prefabGuids.Length; i++)
+            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
+            for (int i = 0; i < prefabPaths.Length; i++)
             {
-                var prefabPath = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
+                var prefabPath = prefabPaths[i];
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefab == null) continue;
 
@@ -152,21 +155,26 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static CleanResult CleanAllScenes()
         {
-            var setup = EditorSceneManager.GetSceneManagerSetup();
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
             var result = new CleanResult();
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return result;
+
+            var setup = EditorSceneManager.GetSceneManagerSetup();
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
             try
             {
-                for (var i = 0; i < sceneGuids.Length; i++)
+                for (var i = 0; i < scenePaths.Length; i++)
                 {
-                    var scenePath = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
+                    var scenePath = scenePaths[i];
 
                     if (EditorUtility.DisplayCancelableProgressBar("Removing Missing Scripts (Scenes)",
-                            scenePath, (float)i / sceneGuids.Length))
+                            scenePath, (float)i / scenePaths.Length))
                         break;
 
-                    var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
+                        continue;
+
                     var removed = CleanScene(scene);
                     if (removed <= 0)
                         continue;
@@ -189,16 +197,16 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static CleanResult CleanAllPrefabs()
         {
-            var prefabGuids = AssetDatabase.FindAssets("t:Prefab");
+            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
             var result = new CleanResult();
 
             try
             {
-                for (var i = 0; i < prefabGuids.Length; i++)
+                for (var i = 0; i < prefabPaths.Length; i++)
                 {
-                    var prefabPath = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
+                    var prefabPath = prefabPaths[i];
                     if (EditorUtility.DisplayCancelableProgressBar("Removing Missing Scripts (Prefabs)",
-                            prefabPath, (float)i / prefabGuids.Length))
+                            prefabPath, (float)i / prefabPaths.Length))
                         break;
 
                     var removed = CleanPrefab(prefabPath);
@@ -230,13 +238,15 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static int CleanPrefab(string prefabPath)
         {
-            var root = PrefabUtility.LoadPrefabContents(prefabPath);
+            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+            if (root == null) return 0;
+
             try
             {
                 var count = CleanGameObjectRecursive(root);
                 if (count > 0)
                 {
-                    PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
                 }
                 return count;
             }

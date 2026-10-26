@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,6 +16,11 @@ namespace Wagenheimer.UnityUtils.Editor
     /// </summary>
     public static class LegacyComponentCleaner
     {
+        private static readonly HashSet<string> PluginExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".dll", ".so", ".a", ".bundle", ".dylib", ".jar", ".aar", ".framework", ".xcframework"
+        };
+
         public struct CleanResult
         {
             public int ScenesUpdated;
@@ -63,11 +71,28 @@ namespace Wagenheimer.UnityUtils.Editor
 
             var scenesUpdated = ResaveScenes();
             var prefabsUpdated = ResavePrefabs();
+            var pluginsUpdated = ResaveLegacyPluginImporters();
             ForceReserializeProject();
 
-            var msg = $"Project modernize complete: {scenesUpdated} scene(s) and {prefabsUpdated} prefab(s) upgraded.";
+            var msg = $"Project modernize complete: {scenesUpdated} scene(s), {prefabsUpdated} prefab(s) and " +
+                      $"{pluginsUpdated} legacy plugin importer(s) upgraded.";
             Debug.Log($"[LegacyComponentCleaner] {msg}");
             EditorUtility.DisplayDialog("Project Modernize", msg, "OK");
+        }
+
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Cleanup/Legacy Components/Resave Legacy Plugin Importers (Upgrade .meta Serialization)", priority = 33)]
+        public static void ResaveAllLegacyPluginImporters()
+        {
+            if (!EditorUtility.DisplayDialog("Resave Legacy Plugin Importers",
+                    "This re-saves .meta files whose PluginImporter is still on an old serialization " +
+                    "version (Unity logs 'PluginImporter object at version 1, below the supported minimum (2)').\n\n" +
+                    "Only plugin metadata is touched; the plugin binaries are not modified.", "Proceed", "Cancel"))
+                return;
+
+            var updated = ResaveLegacyPluginImporters();
+            var msg = $"Re-saved {updated} legacy plugin importer(s).";
+            Debug.Log($"[LegacyComponentCleaner] {msg}");
+            EditorUtility.DisplayDialog("Resave Legacy Plugin Importers", msg, "OK");
         }
 
         #endregion
@@ -76,22 +101,34 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static int ResaveScenes()
         {
+            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
+                return 0;
+
             var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene");
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
             var updated = 0;
 
             try
             {
-                for (int i = 0; i < sceneGuids.Length; i++)
+                for (int i = 0; i < scenePaths.Length; i++)
                 {
-                    var scenePath = AssetDatabase.GUIDToAssetPath(sceneGuids[i]);
-                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Scenes", scenePath, (float)i / sceneGuids.Length))
+                    var scenePath = scenePaths[i];
+                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Scenes", scenePath, (float)i / scenePaths.Length))
                         break;
 
-                    var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
-                    EditorSceneManager.MarkSceneDirty(scene);
-                    EditorSceneManager.SaveScene(scene);
-                    updated++;
+                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
+                        continue;
+
+                    try
+                    {
+                        EditorSceneManager.MarkSceneDirty(scene);
+                        EditorSceneManager.SaveScene(scene);
+                        updated++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[LegacyComponentCleaner] Could not resave scene '{scenePath}': {ex.Message}");
+                    }
                 }
             }
             finally
@@ -106,22 +143,24 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static int ResavePrefabs()
         {
-            var prefabGuids = AssetDatabase.FindAssets("t:Prefab");
+            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
             var updated = 0;
 
             try
             {
-                for (int i = 0; i < prefabGuids.Length; i++)
+                for (int i = 0; i < prefabPaths.Length; i++)
                 {
-                    var prefabPath = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
-                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Prefabs", prefabPath, (float)i / prefabGuids.Length))
+                    var prefabPath = prefabPaths[i];
+                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Prefabs", prefabPath, (float)i / prefabPaths.Length))
                         break;
 
-                    var root = PrefabUtility.LoadPrefabContents(prefabPath);
+                    var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+                    if (root == null) continue;
+
                     try
                     {
-                        PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
-                        updated++;
+                        if (CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                            updated++;
                     }
                     finally
                     {
@@ -137,14 +176,101 @@ namespace Wagenheimer.UnityUtils.Editor
             return updated;
         }
 
+        /// <summary>
+        /// Re-saves .meta files whose PluginImporter still reports the legacy serialization version
+        /// (Unity 6 warns: "contains a PluginImporter object at version 1, below the supported minimum (2)").
+        /// Saving the importer is the supported way to upgrade the metadata without touching the binary.
+        /// </summary>
+        public static int ResaveLegacyPluginImporters()
+        {
+            var legacyPluginPaths = FindLegacyPluginImporterPaths();
+            var updated = 0;
+
+            try
+            {
+                for (int i = 0; i < legacyPluginPaths.Length; i++)
+                {
+                    var assetPath = legacyPluginPaths[i];
+                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Legacy Plugin Importers",
+                            assetPath, (float)i / legacyPluginPaths.Length))
+                        break;
+
+                    var importer = AssetImporter.GetAtPath(assetPath) as PluginImporter;
+                    if (importer == null) continue;
+
+                    try
+                    {
+                        importer.SaveAndReimport();
+                        updated++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[LegacyComponentCleaner] Could not resave plugin importer '{assetPath}': {ex.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+
+            return updated;
+        }
+
+        private static string[] FindLegacyPluginImporterPaths()
+        {
+            if (!Directory.Exists("Assets"))
+                return Array.Empty<string>();
+
+            var paths = new List<string>();
+            foreach (var metaPath in Directory.GetFiles("Assets", "*.meta", SearchOption.AllDirectories))
+            {
+                var assetPath = metaPath.Replace('\\', '/');
+                assetPath = assetPath.Substring(0, assetPath.Length - ".meta".Length);
+                if (!PluginExtensions.Contains(Path.GetExtension(assetPath)))
+                    continue;
+
+                string metaText;
+                try
+                {
+                    metaText = File.ReadAllText(metaPath);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (!metaText.Contains("PluginImporter:"))
+                    continue;
+                if (!HasLegacyPluginImporterVersion(metaText))
+                    continue;
+
+                paths.Add(assetPath);
+            }
+
+            paths.Sort(StringComparer.OrdinalIgnoreCase);
+            return paths.ToArray();
+        }
+
+        private static bool HasLegacyPluginImporterVersion(string metaText)
+        {
+            var match = Regex.Match(metaText, @"PluginImporter:\s*\r?\n\s*serializedVersion:\s*(\d+)");
+            if (!match.Success)
+                return true; // Missing serializedVersion means an old importer that needs upgrading.
+
+            return int.TryParse(match.Groups[1].Value, out var version) && version < 2;
+        }
+
         public static void ForceReserializeProject()
         {
-            var allAssets = AssetDatabase.FindAssets("t:Scene")
-                .Concat(AssetDatabase.FindAssets("t:Prefab"))
-                .Concat(AssetDatabase.FindAssets("t:ScriptableObject"))
-                .Select(AssetDatabase.GUIDToAssetPath)
+            var allAssets = CleanupAssetUtility.GetProjectScenePaths()
+                .Concat(CleanupAssetUtility.GetProjectPrefabPaths())
+                .Concat(CleanupAssetUtility.GetProjectScriptableObjectPaths())
                 .Distinct()
                 .ToArray();
+
+            if (allAssets.Length == 0)
+                return;
 
             AssetDatabase.ForceReserializeAssets(allAssets);
             AssetDatabase.SaveAssets();

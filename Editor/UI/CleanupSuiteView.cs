@@ -57,14 +57,14 @@ namespace Wagenheimer.UnityUtils.Editor
             audioBar.style.marginTop = 0;
             audioBar.style.borderTopWidth = 0;
 
-            audioBar.Add(UnityUtilsUIStyle.CreateButton("Scan Project", "btn-secondary", () =>
+            audioBar.Add(CreateActionButton("Scan Project", "btn-secondary", "AudioListener scan", () =>
             {
                 var scan = AudioListenerCleaner.ScanProject();
                 _audioMetric.text = scan.DuplicateCount.ToString();
                 SetStatus($"AudioListeners scan: {scan.DuplicateCount} duplicates in {scan.AffectedScenesCount} scenes and {scan.AffectedPrefabsCount} prefabs.");
             }));
 
-            audioBar.Add(UnityUtilsUIStyle.CreateButton("Fix All (Scenes & Prefabs)", "btn-primary", () =>
+            audioBar.Add(CreateActionButton("Fix All (Scenes & Prefabs)", "btn-primary", "AudioListener cleanup", () =>
             {
                 var sceneRes = AudioListenerCleaner.CleanAllScenes(removeAllNonPersistent: false);
                 var prefabRes = AudioListenerCleaner.CleanAllPrefabs(removeAllNonPersistent: false);
@@ -73,7 +73,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 SetStatus($"Removed {total} duplicate AudioListener(s) ({sceneRes.ScenesModified} scene(s), {prefabRes.PrefabsModified} prefab(s)).");
             }));
 
-            audioBar.Add(UnityUtilsUIStyle.CreateButton("Remove Non-Bootstrap Listeners", "btn-danger", () =>
+            audioBar.Add(CreateActionButton("Remove Non-Bootstrap Listeners", "btn-danger", "AudioListener removal", () =>
             {
                 AudioListenerCleaner.RemoveAllNonBootstrapListeners();
                 SetStatus("Removed all non-bootstrap AudioListeners.");
@@ -93,14 +93,14 @@ namespace Wagenheimer.UnityUtils.Editor
             scriptBar.style.marginTop = 0;
             scriptBar.style.borderTopWidth = 0;
 
-            scriptBar.Add(UnityUtilsUIStyle.CreateButton("Scan Project", "btn-secondary", () =>
+            scriptBar.Add(CreateActionButton("Scan Project", "btn-secondary", "Missing scripts scan", () =>
             {
                 var scan = MissingScriptCleaner.ScanProject();
                 _scriptsMetric.text = scan.MissingScriptCount.ToString();
                 SetStatus($"Missing scripts scan: {scan.MissingScriptCount} missing scripts in {scan.AffectedScenesCount} scenes and {scan.AffectedPrefabsCount} prefabs.");
             }));
 
-            scriptBar.Add(UnityUtilsUIStyle.CreateButton("Fix All (Scenes & Prefabs)", "btn-primary", () =>
+            scriptBar.Add(CreateActionButton("Fix All (Scenes & Prefabs)", "btn-primary", "Missing scripts cleanup", () =>
             {
                 var sceneRes = MissingScriptCleaner.CleanAllScenes();
                 var prefabRes = MissingScriptCleaner.CleanAllPrefabs();
@@ -123,7 +123,7 @@ namespace Wagenheimer.UnityUtils.Editor
             tmpBar.style.marginTop = 0;
             tmpBar.style.borderTopWidth = 0;
 
-            tmpBar.Add(UnityUtilsUIStyle.CreateButton("Scan TMP Issues", "btn-secondary", () =>
+            tmpBar.Add(CreateActionButton("Scan TMP Issues", "btn-secondary", "TMP scan", () =>
             {
                 var rScan = TMPCanvasRendererCleaner.ScanProject();
                 var cScan = TMPTextContainerCleaner.ScanProject();
@@ -132,13 +132,13 @@ namespace Wagenheimer.UnityUtils.Editor
                 SetStatus($"TMP scan: {rScan.RedundantRendererCount} redundant CanvasRenderers, {cScan.ObsoleteContainerCount} obsolete TextContainers.");
             }));
 
-            tmpBar.Add(UnityUtilsUIStyle.CreateButton("Fix CanvasRenderers", "btn-primary", () =>
+            tmpBar.Add(CreateActionButton("Fix CanvasRenderers", "btn-primary", "CanvasRenderer cleanup", () =>
             {
                 var res = TMPCanvasRendererCleaner.CleanAll();
                 SetStatus($"Fixed {res.ObjectsFixed} redundant CanvasRenderer(s).");
             }));
 
-            tmpBar.Add(UnityUtilsUIStyle.CreateButton("Fix TextContainers", "btn-primary", () =>
+            tmpBar.Add(CreateActionButton("Fix TextContainers", "btn-primary", "TextContainer cleanup", () =>
             {
                 var res = TMPTextContainerCleaner.CleanAll();
                 SetStatus($"Fixed {res.ObjectsFixed} obsolete TextContainer(s).");
@@ -158,19 +158,19 @@ namespace Wagenheimer.UnityUtils.Editor
             animBar.style.marginTop = 0;
             animBar.style.borderTopWidth = 0;
 
-            animBar.Add(UnityUtilsUIStyle.CreateButton("Audit Transitions", "btn-secondary", () =>
+            animBar.Add(CreateActionButton("Audit Transitions", "btn-secondary", "Animator transition audit", () =>
             {
                 AnimatorTransitionCleaner.AuditInvalidTransitions();
                 SetStatus("Audited animator transitions. Check Console for details.");
             }));
 
-            animBar.Add(UnityUtilsUIStyle.CreateButton("Fix: Enable Exit Time", "btn-primary", () =>
+            animBar.Add(CreateActionButton("Fix: Enable Exit Time", "btn-primary", "Animator transition fix", () =>
             {
                 AnimatorTransitionCleaner.FixInvalidTransitionsEnableExitTime();
                 SetStatus("Enabled Exit Time on invalid transitions.");
             }));
 
-            animBar.Add(UnityUtilsUIStyle.CreateButton("Fix: Remove Invalid", "btn-danger", () =>
+            animBar.Add(CreateActionButton("Fix: Remove Invalid", "btn-danger", "Animator transition removal", () =>
             {
                 AnimatorTransitionCleaner.FixInvalidTransitionsRemove();
                 SetStatus("Removed invalid transitions.");
@@ -190,10 +190,16 @@ namespace Wagenheimer.UnityUtils.Editor
             legacyBar.style.marginTop = 0;
             legacyBar.style.borderTopWidth = 0;
 
-            legacyBar.Add(UnityUtilsUIStyle.CreateButton("Modernize & Resave Project", "btn-secondary", () =>
+            legacyBar.Add(CreateActionButton("Modernize & Resave Project", "btn-secondary", "Project modernize", () =>
             {
                 LegacyComponentCleaner.ResaveAllScenesAndPrefabs();
-                SetStatus("All scenes and prefabs resaved and modernized.");
+                SetStatus("All scenes, prefabs and legacy plugin metas resaved and modernized.");
+            }));
+
+            legacyBar.Add(CreateActionButton("Resave Legacy Plugin Meta", "btn-secondary", "Legacy plugin importer resave", () =>
+            {
+                var updated = LegacyComponentCleaner.ResaveLegacyPluginImporters();
+                SetStatus($"Re-saved {updated} legacy plugin importer(s).");
             }));
 
             legacyBody.Add(legacyBar);
@@ -215,13 +221,13 @@ namespace Wagenheimer.UnityUtils.Editor
             iapBar.style.marginTop = 0;
             iapBar.style.borderTopWidth = 0;
 
-            iapBar.Add(UnityUtilsUIStyle.CreateButton("Scan IAP Buttons", "btn-secondary", () =>
+            iapBar.Add(CreateActionButton("Scan IAP Buttons", "btn-secondary", "IAP button scan", () =>
             {
                 var scan = UnusedIAPButtonCleaner.ScanProject();
                 SetStatus($"IAP Buttons scan: {scan.UnusedComponentCount} unused components found.");
             }));
 
-            iapBar.Add(UnityUtilsUIStyle.CreateButton("Fix All Unused", "btn-primary", () =>
+            iapBar.Add(CreateActionButton("Fix All Unused", "btn-primary", "IAP button cleanup", () =>
             {
                 var res = UnusedIAPButtonCleaner.CleanAll();
                 SetStatus($"Removed {res.ObjectsFixed} unused IAP button components.");
@@ -241,20 +247,47 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private void RunFullScan()
         {
-            var audioScan = AudioListenerCleaner.ScanProject();
-            var scriptsScan = MissingScriptCleaner.ScanProject();
-            var tmpRenderScan = TMPCanvasRendererCleaner.ScanProject();
-            var tmpContainerScan = TMPTextContainerCleaner.ScanProject();
+            RunGuarded("Full project scan", () =>
+            {
+                var audioScan = AudioListenerCleaner.ScanProject();
+                var scriptsScan = MissingScriptCleaner.ScanProject();
+                var tmpRenderScan = TMPCanvasRendererCleaner.ScanProject();
+                var tmpContainerScan = TMPTextContainerCleaner.ScanProject();
 
-            _audioMetric.text = audioScan.DuplicateCount.ToString();
-            _scriptsMetric.text = scriptsScan.MissingScriptCount.ToString();
-            _tmpMetric.text = (tmpRenderScan.RedundantRendererCount + tmpContainerScan.ObsoleteContainerCount).ToString();
+                _audioMetric.text = audioScan.DuplicateCount.ToString();
+                _scriptsMetric.text = scriptsScan.MissingScriptCount.ToString();
+                _tmpMetric.text = (tmpRenderScan.RedundantRendererCount + tmpContainerScan.ObsoleteContainerCount).ToString();
 
-            SetStatus($"Full project scan completed: {audioScan.DuplicateCount} audio duplicates, {scriptsScan.MissingScriptCount} missing scripts, {tmpRenderScan.RedundantRendererCount + tmpContainerScan.ObsoleteContainerCount} TMP redundancies.");
+                SetStatus($"Full project scan completed: {audioScan.DuplicateCount} audio duplicates, {scriptsScan.MissingScriptCount} missing scripts, {tmpRenderScan.RedundantRendererCount + tmpContainerScan.ObsoleteContainerCount} TMP redundancies.");
+            });
+        }
+
+        private Button CreateActionButton(string label, string styleClass, string operation, Action action)
+        {
+            return UnityUtilsUIStyle.CreateButton(label, styleClass, () => RunGuarded(operation, action));
+        }
+
+        private void RunGuarded(string operation, Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                SetStatus($"{operation} failed: {ex.Message}");
+            }
         }
 
         private void SetStatus(string message)
         {
+            if (_statusLabel == null)
+            {
+                Debug.Log($"[CleanupSuite] {message}");
+                return;
+            }
+
             _statusLabel.text = message;
             Debug.Log($"[CleanupSuite] {message}");
         }

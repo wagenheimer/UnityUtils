@@ -2,6 +2,30 @@ name: UnityUtils
 
 # Changelog
 
+## [1.18.0] - 2026-10-25
+
+### Added
+- cleanup: **Resave Legacy Plugin Importers** action (`LegacyComponentCleaner.ResaveLegacyPluginImporters`)
+  and a matching button in the cleanup dashboard. It finds `.meta` files whose `PluginImporter` is still
+  serialized as version 1 and re-saves the importer, clearing Unity 6's
+  "PluginImporter object at version 1, below the supported minimum (2)" warning without touching the
+  plugin binary.
+
+### Fixed
+- cleanup: every project-wide cleaner now searches only `Assets/` via the new
+  `CleanupAssetUtility`. Previously `AssetDatabase.FindAssets("t:Scene")` also returned read-only package
+  scenes, and opening URP's `Packages/.../SceneTemplates/Basic.unity` threw
+  `ArgumentException: Cannot open scene with path ...`, aborting the whole scan/clean run.
+- cleanup: scene/prefab processing is now fault-tolerant — a scene that fails to open or a prefab that
+  fails to load is logged and skipped instead of aborting the operation.
+- cleanup: project-wide scans and cleaners first call
+  `EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()`. Opening every scene in `Single` mode
+  used to discard unsaved scene changes silently.
+- cleanup: image, Text-Mesh-Pro Cleaners no longer strip a `CanvasRenderer` from a GameObject that also
+  has a UGUI `Graphic`/`TextMeshProUGUI` and still needs it.
+- cleanup: the cleanup dashboard catches exceptions from each action and reports them in the status bar,
+  so an unexpected asset error no longer leaves the UI stuck or throws out of the click handler.
+
 ## [1.17.0] - 2026-10-21
 
 ## [1.16.0] - 2026-10-21

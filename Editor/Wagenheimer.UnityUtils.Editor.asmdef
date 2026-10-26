@@ -4,6 +4,7 @@
     "references": [
         "Wagenheimer.UnityUtils",
         "Unity.TextMeshPro",
+        "UnityEngine.UI",
         "Unity.Purchasing.Codeless",
         "Wagenheimer.PackageHub.Editor"
     ],

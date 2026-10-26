@@ -21,7 +21,7 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
   - **TextMesh Pro CanvasRenderer Cleaner**: Strips redundant `CanvasRenderer` components attached to world-space `TextMeshPro` objects.
   - **TextMesh Pro TextContainer Cleaner**: Removes obsolete `TMPro.TextContainer` components left over from legacy TMP packages.
   - **Animator Transition Auditor**: Audits and auto-repairs invalid animator state transitions missing exit times or conditions.
-  - **Legacy Component Modernizer**: Re-serializes scenes and prefabs using the active Unity engine format.
+  - **Legacy Component Modernizer**: Re-serializes scenes, prefabs and legacy plugin importers using the active Unity engine format.
   - **Unused Codeless IAP Button Cleaner**: Strips empty, disconnected `IAPButton` components (active when `com.unity.purchasing` is installed).
 - **Third-Party Asset Slimmer (`ThirdPartySlimmerView`)**:
   - **GUID-based usage audit** resolving `m_Script`/`m_Shader` references across scenes, prefabs and materials, while ignoring the pack's own Examples/Doc content so bundled demos do not make everything look "used".
