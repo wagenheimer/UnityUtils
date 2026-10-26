@@ -2,6 +2,8 @@ name: UnityUtils
 
 # Changelog
 
+## [1.18.1] - 2026-10-26
+
 ## [1.18.0] - 2026-10-25
 
 ### Added
