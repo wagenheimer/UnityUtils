@@ -173,6 +173,9 @@ namespace Wagenheimer.UnityUtils.Editor
                             $"Prefab: {path}", 0.5f + (float)i / (prefabPaths.Length * 2)))
                         break;
 
+                    if (CountUnusedInPrefab(path) == 0)
+                        continue;
+
                     var fixedInPrefab = FixInPrefab(path);
                     if (fixedInPrefab > 0)
                     {
@@ -221,22 +224,16 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static int CountUnusedInPrefab(string prefabPath)
         {
-            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+            // Inspect the asset directly so scans do not run user Awake/OnEnable methods.
+            var root = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (root == null) return 0;
 
-            try
+            int count = 0;
+            foreach (var button in root.GetComponentsInChildren<IAPButton>(true))
             {
-                int count = 0;
-                foreach (var button in root.GetComponentsInChildren<IAPButton>(true))
-                {
-                    if (IsUnused(button)) count++;
-                }
-                return count;
+                if (IsUnused(button)) count++;
             }
-            finally
-            {
-                PrefabUtility.UnloadPrefabContents(root);
-            }
+            return count;
         }
 
         private static int FixInPrefab(string prefabPath)

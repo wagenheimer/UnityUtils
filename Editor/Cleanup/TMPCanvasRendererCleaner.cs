@@ -177,6 +177,12 @@ namespace Wagenheimer.UnityUtils.Editor
                         break;
                     }
 
+                    // Inspect the prefab asset directly first. Loading every prefab's contents
+                    // runs ExecuteInEditMode Awake methods (and logs whatever they log), which
+                    // makes a no-op clean extremely noisy.
+                    if (CountInPrefab(path) == 0)
+                        continue;
+
                     var fixedInPrefab = FixInPrefab(path);
                     if (fixedInPrefab > 0)
                     {
@@ -226,23 +232,18 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static int CountInPrefab(string prefabPath)
         {
-            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
+            // Read the prefab asset itself (not an instantiated copy) so scanning never runs
+            // Awake/OnEnable on user scripts.
+            var root = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (root == null) return 0;
 
-            try
+            int count = 0;
+            foreach (var tmp in root.GetComponentsInChildren<TextMeshPro>(true))
             {
-                int count = 0;
-                foreach (var tmp in root.GetComponentsInChildren<TextMeshPro>(true))
-                {
-                    if (tmp.GetComponent<CanvasRenderer>() != null && !RequiresCanvasRenderer(tmp.gameObject))
-                        count++;
-                }
-                return count;
+                if (tmp.GetComponent<CanvasRenderer>() != null && !RequiresCanvasRenderer(tmp.gameObject))
+                    count++;
             }
-            finally
-            {
-                PrefabUtility.UnloadPrefabContents(root);
-            }
+            return count;
         }
 
         private static int FixInPrefab(string prefabPath)

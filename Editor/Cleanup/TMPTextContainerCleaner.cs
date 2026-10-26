@@ -172,6 +172,11 @@ namespace Wagenheimer.UnityUtils.Editor
                         break;
                     }
 
+                    // See TMPCanvasRendererCleaner: only instantiate prefab contents when
+                    // there is actually something to fix.
+                    if (CountInPrefab(path) == 0)
+                        continue;
+
                     var fixedInPrefab = FixInPrefab(path);
                     if (fixedInPrefab > 0)
                     {
@@ -214,17 +219,9 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static int CountInPrefab(string prefabPath)
         {
-            var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
-            if (root == null) return 0;
-
-            try
-            {
-                return root.GetComponentsInChildren<TextContainer>(true).Length;
-            }
-            finally
-            {
-                PrefabUtility.UnloadPrefabContents(root);
-            }
+            // Inspect the asset directly so scans do not run user Awake/OnEnable methods.
+            var root = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            return root == null ? 0 : root.GetComponentsInChildren<TextContainer>(true).Length;
         }
 
         private static int FixInPrefab(string prefabPath)
