@@ -2,6 +2,30 @@ name: UnityUtils
 
 # Changelog
 
+## [1.19.0] - 2026-10-27
+
+### Added
+- pooling: **modern PoolManager replacement** (`Wagenheimer.UnityUtils.Pooling`) with a source-compatible
+  `SpawnPool`/`PrefabPool`/`PoolManager.Pools` API. O(1) prefab and instance lookups, FIFO/LIFO reuse,
+  allocation-free delayed despawn/audio/particle scheduling, optional `IPoolable` callbacks, cached
+  legacy `OnSpawned`/`OnDespawned` detection, counters/snapshots and `SpawnManager.GetReport()`.
+- pooling: **UI Toolkit inspector** for `SpawnPool` with per-prefab cards, validation warnings and live counters.
+- pooling: **runtime UI Toolkit overlay** (`PoolDebugOverlay`, `F8` by default) with live per-pool/per-prefab
+  counters, search, Despawn/Trim actions and a copyable report. Auto-created in the Editor and Development Builds.
+- pooling: **automatic legacy migration** (`LegacyPoolMigrator`): detects Path-o-logical PoolManager assets,
+  re-points `SpawnPool`/`PreRuntimePoolItem` components to the new script GUIDs (serialized data preserved),
+  rewrites `using PathologicalGames;` to the new namespace, moves the legacy plugin out of `Assets`, and creates a
+  full backup in `Library/UnityUtilsPoolMigrationBackup`. The Pooling dashboard tab exposes scan/preview/migrate,
+  auto-detect and opt-in auto-migrate, plus one-click restore.
+- pooling: `SpawnManagerSettings` ScriptableObject (`Resources/Wagenheimer/SpawnManagerSettings`) for log level,
+  legacy messages, runtime overlay and auto-created pool defaults.
+- pooling: new **Pooling & Migration** tab in the Unity Utils dashboard and
+  `Tools/Wagenheimer/Unity Utils/Pooling/Open Pooling Dashboard...`.
+
+### Fixed
+- pooling: particle auto-despawn no longer logs the timeout warning every frame; it logs once and recovers.
+- pooling: delayed despawns no longer allocate one coroutine per spawned instance.
+
 ## [1.18.2] - 2026-10-26
 
 ### Fixed

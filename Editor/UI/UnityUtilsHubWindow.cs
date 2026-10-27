@@ -20,7 +20,8 @@ namespace Wagenheimer.UnityUtils.Editor
             ThirdPartySlimmer = 2,
             MobileOptimizer = 3,
             AndroidTools = 4,
-            About = 5
+            Pooling = 5,
+            About = 6
         }
 
         private const string PackageJsonPath = "Packages/com.wagenheimer.unityutils/package.json";
@@ -56,10 +57,16 @@ namespace Wagenheimer.UnityUtils.Editor
             Open(Tab.MobileOptimizer);
         }
 
+        [MenuItem("Tools/Wagenheimer/Unity Utils/Pooling/Open Pooling Dashboard...", priority = 145)]
+        public static void OpenPooling()
+        {
+            Open(Tab.Pooling);
+        }
+
         public static UnityUtilsHubWindow Open(Tab tab = Tab.Bootstrap)
         {
             var window = GetWindow<UnityUtilsHubWindow>("Unity Utils");
-            window.minSize = new Vector2(620, 520);
+            window.minSize = new Vector2(680, 540);
             window.SwitchTab(tab);
             window.Show();
             return window;
@@ -105,7 +112,7 @@ namespace Wagenheimer.UnityUtils.Editor
             var tabToolbar = new VisualElement();
             tabToolbar.AddToClassList("tab-toolbar");
 
-            var tabNames = new[] { "Bootstrap & Diagnostics", "Project Cleanup", "Third-Party Slim", "Mobile Optimizer", "Android & Tools", "About & Updates" };
+            var tabNames = new[] { "Bootstrap & Diagnostics", "Project Cleanup", "Third-Party Slim", "Mobile Optimizer", "Android & Tools", "Pooling & Migration", "About & Updates" };
             _tabButtons = new Button[tabNames.Length];
 
             for (var i = 0; i < tabNames.Length; i++)
@@ -172,6 +179,9 @@ namespace Wagenheimer.UnityUtils.Editor
                     break;
                 case Tab.AndroidTools:
                     _contentContainer.Add(BuildAndroidToolsView());
+                    break;
+                case Tab.Pooling:
+                    _contentContainer.Add(new PoolingHubView());
                     break;
                 case Tab.About:
                     _contentContainer.Add(BuildAboutView());
@@ -312,6 +322,7 @@ namespace Wagenheimer.UnityUtils.Editor
             AddModuleItem(modulesBody, "Project Cleanup Suite", "Comprehensive scanners and cleaners for AudioListeners, missing scripts, TMP CanvasRenderers, and obsolete components.");
             AddModuleItem(modulesBody, "Third-Party Asset Slimmer", "GUID-based usage audit of vendor packs, in-place slimming, extract-used-only relocation, and Built-in to URP shader porting.");
             AddModuleItem(modulesBody, "Mobile Optimizer", "Audits build textures, audio and Android settings against mobile best practices (crunch, ASTC overrides, size caps, audio streaming, ETC1/ARMv7) with one-click fixes.");
+            AddModuleItem(modulesBody, "Pooling System", "Modern, source-compatible PoolManager replacement with O(1) lookups, allocation-free scheduling, UI Toolkit inspector, runtime overlay and automatic legacy migration with backups.");
             AddModuleItem(modulesBody, "Android Tools", "Quick inspection and toggling of the AAB 200MB size threshold warning.");
 
             scroll.Add(modulesCard);

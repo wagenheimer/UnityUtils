@@ -1,0 +1,496 @@
+using System;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEditor.UIElements;
+using UnityEngine;
+using UnityEngine.UIElements;
+using Wagenheimer.UnityUtils.Pooling;
+using Object = UnityEngine.Object;
+
+namespace Wagenheimer.UnityUtils.Editor
+{
+    /// <summary>
+    /// UI Toolkit inspector for <see cref="SpawnPool"/>. Shows the serialized settings, a
+    /// per-prefab configuration card with validation, and live counters while playing.
+    /// </summary>
+    [CustomEditor(typeof(SpawnPool))]
+    public class SpawnPoolEditor : UnityEditor.Editor
+    {
+        private static readonly Color Muted = new Color(0.65f, 0.68f, 0.75f);
+        private static readonly Color Warning = new Color(0.95f, 0.72f, 0.20f);
+        private static readonly Color Error = new Color(0.95f, 0.35f, 0.35f);
+        private static readonly Color Success = new Color(0.35f, 0.85f, 0.55f);
+
+        private SpawnPool _pool;
+        private VisualElement _root;
+        private VisualElement _prefabList;
+        private VisualElement _liveContainer;
+        private Label _statusLabel;
+        private Label _spawnedMetric;
+        private Label _despawnedMetric;
+        private Label _instantiatedMetric;
+        private Label _reusedMetric;
+
+        public override VisualElement CreateInspectorGUI()
+        {
+            _pool = (SpawnPool)target;
+
+            _root = new VisualElement();
+            _root.style.paddingLeft = _root.style.paddingRight = 4;
+            _root.style.paddingTop = _root.style.paddingBottom = 4;
+            AddStyles(_root);
+
+            serializedObject.Update();
+
+            _root.Add(BuildHeader());
+            _root.Add(BuildSettingsCard());
+            _root.Add(BuildLiveCard());
+            _root.Add(BuildPrefabPoolsCard());
+
+            // PropertyFields write to the SerializedObject; persist them as soon as anything changes.
+            _root.RegisterCallback<SerializedPropertyChangeEvent>(_ =>
+            {
+                serializedObject.ApplyModifiedProperties();
+                RefreshLive();
+            });
+
+            _root.schedule.Execute(RefreshLive).Every(250);
+            RefreshLive();
+            return _root;
+        }
+
+        private void OnDisable()
+        {
+            if (serializedObject != null && serializedObject.targetObject != null)
+                serializedObject.ApplyModifiedProperties();
+        }
+
+        private static void AddStyles(VisualElement root)
+        {
+            var stylesheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(
+                "Packages/com.wagenheimer.unityutils/Editor/UI/UnityUtilsCommon.uss");
+
+            if (stylesheet == null)
+            {
+                var guids = AssetDatabase.FindAssets("UnityUtilsCommon t:StyleSheet");
+                if (guids.Length > 0)
+                    stylesheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(AssetDatabase.GUIDToAssetPath(guids[0]));
+            }
+
+            if (stylesheet != null)
+                root.styleSheets.Add(stylesheet);
+        }
+
+        private VisualElement BuildHeader()
+        {
+            var card = UnityUtilsUIStyle.CreateCard(
+                "Spawn Pool",
+                "Modern PoolManager replacement. Existing Path-o-logical scenes can be migrated from the Pooling dashboard tab.",
+                out var body);
+
+            var row = new VisualElement();
+            row.style.flexDirection = FlexDirection.Row;
+            row.style.alignItems = Align.Center;
+
+            var name = new Label(string.IsNullOrEmpty(_pool.poolName) ? "(derived from GameObject name)" : _pool.poolName);
+            name.style.fontSize = 14;
+            name.style.unityFontStyleAndWeight = FontStyle.Bold;
+            name.style.flexGrow = 1;
+            row.Add(name);
+
+            var status = UnityUtilsUIStyle.CreateBadge(
+                Application.isPlaying ? "PLAYING" : "EDIT MODE",
+                Application.isPlaying ? "badge-pass" : "badge-info");
+            row.Add(status);
+            body.Add(row);
+
+            _statusLabel = new Label(Application.isPlaying
+                ? "Live counters update every 250 ms."
+                : "Enter Play Mode to see live counters and use the spawn/despawn actions.");
+            _statusLabel.style.fontSize = 10;
+            _statusLabel.style.color = Muted;
+            _statusLabel.style.marginTop = 4;
+            body.Add(_statusLabel);
+
+            return card;
+        }
+
+        private VisualElement BuildSettingsCard()
+        {
+            var card = UnityUtilsUIStyle.CreateCard("Pool Settings", null, out var body);
+
+            body.Add(Property("poolName"));
+            body.Add(Property("matchPoolScale"));
+            body.Add(Property("matchPoolLayer"));
+            body.Add(Property("dontReparent"));
+            body.Add(Property("_dontDestroyOnLoad"));
+            body.Add(Property("logMessages"));
+            body.Add(Property("sendLegacyMessages"));
+            body.Add(Property("despawnUsesUnscaledTime"));
+            body.Add(Property("maxParticleDespawnTime"));
+
+            return card;
+        }
+
+        private VisualElement BuildLiveCard()
+        {
+            var card = UnityUtilsUIStyle.CreateCard(
+                "Live Counters",
+                "Spawned/despawned instances, instantiate vs. reuse and limit hits.",
+                out var body);
+
+            var metrics = new VisualElement();
+            metrics.AddToClassList("metrics-row");
+            metrics.Add(UnityUtilsUIStyle.CreateMetricCard("Spawned", "-", out _spawnedMetric));
+            metrics.Add(UnityUtilsUIStyle.CreateMetricCard("Despawned", "-", out _despawnedMetric));
+            metrics.Add(UnityUtilsUIStyle.CreateMetricCard("Instantiated", "-", out _instantiatedMetric));
+            metrics.Add(UnityUtilsUIStyle.CreateMetricCard("Reused", "-", out _reusedMetric));
+            body.Add(metrics);
+
+            _liveContainer = new VisualElement();
+            body.Add(_liveContainer);
+
+            return card;
+        }
+
+        private VisualElement BuildPrefabPoolsCard()
+        {
+            var card = UnityUtilsUIStyle.CreateCard(
+                "Per-Prefab Pools",
+                "Prefabs not listed here are created automatically the first time Spawn() is called.",
+                out var body);
+
+            var toolbar = new VisualElement();
+            toolbar.AddToClassList("action-toolbar");
+            toolbar.style.marginTop = 0;
+            toolbar.style.borderTopWidth = 0;
+
+            toolbar.Add(UnityUtilsUIStyle.CreateButton("Add Prefab Pool", "btn-primary", AddPrefabPool));
+            toolbar.Add(UnityUtilsUIStyle.CreateButton("Validate", "btn-secondary", () =>
+            {
+                serializedObject.Update();
+                RefreshPrefabList();
+            }));
+            body.Add(toolbar);
+
+            _prefabList = new VisualElement();
+            body.Add(_prefabList);
+
+            RefreshPrefabList();
+            return card;
+        }
+
+        private void RefreshPrefabList()
+        {
+            if (_prefabList == null) return;
+
+            _prefabList.Clear();
+
+            var listProperty = serializedObject.FindProperty(nameof(SpawnPool._perPrefabPoolOptions));
+            if (listProperty == null || listProperty.arraySize == 0)
+            {
+                var empty = new Label("No prefab pools configured. Spawn() will create them on demand.");
+                empty.style.fontSize = 10;
+                empty.style.color = Muted;
+                empty.style.paddingTop = empty.style.paddingBottom = 6;
+                _prefabList.Add(empty);
+                return;
+            }
+
+            var live = GetLivePrefabMap();
+
+            for (var i = 0; i < listProperty.arraySize; i++)
+                _prefabList.Add(BuildPrefabPool(listProperty.GetArrayElementAtIndex(i), i, live));
+        }
+
+        private VisualElement BuildPrefabPool(SerializedProperty element, int index, Dictionary<string, PrefabPoolSnapshot> live)
+        {
+            var prefabProperty = element.FindPropertyRelative(nameof(PrefabPool.prefab));
+            var prefab = prefabProperty.objectReferenceValue as Transform;
+            var prefabName = prefab != null ? prefab.name : $"Prefab Pool {index + 1}";
+
+            live.TryGetValue(prefabName, out var snapshot);
+
+            var container = new VisualElement();
+            container.style.marginTop = 6;
+            container.style.paddingTop = 6;
+            container.style.borderTopWidth = 1;
+            container.style.borderTopColor = new Color(0.24f, 0.25f, 0.30f);
+
+            var header = new VisualElement();
+            header.style.flexDirection = FlexDirection.Row;
+            header.style.alignItems = Align.Center;
+
+            var foldout = new Foldout { text = prefabName, value = true };
+            foldout.style.flexGrow = 1;
+            foldout.style.fontSize = 11;
+            header.Add(foldout);
+
+            if (snapshot != null)
+            {
+                var badge = UnityUtilsUIStyle.CreateBadge(
+                    $"spawned {snapshot.Spawned} / {snapshot.Total}",
+                    snapshot.LimitHits > 0 ? "badge-warning" : "badge-pass");
+                badge.style.marginRight = 6;
+                header.Add(badge);
+            }
+
+            var remove = UnityUtilsUIStyle.CreateButton("Remove", "btn-danger", () => RemovePrefabPool(index));
+            remove.style.marginLeft = 4;
+            header.Add(remove);
+
+            container.Add(header);
+
+            var content = new VisualElement();
+            content.style.paddingLeft = 12;
+            content.style.paddingTop = 4;
+            foldout.Add(content);
+
+            content.Add(Property(prefabProperty));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.preloadAmount)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.preloadTime)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.preloadFrames)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.preloadDelay)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.limitInstances)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.limitAmount)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.limitFIFO)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.reuseMode)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.cullDespawned)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.cullAbove)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.cullDelay)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool.cullMaxPerPass)));
+            content.Add(PropertyFromParent(element, nameof(PrefabPool._logMessages)));
+
+            var warnings = ValidatePrefabPool(element);
+            if (warnings.Count > 0)
+            {
+                var box = new VisualElement();
+                box.style.marginTop = 4;
+                box.style.paddingLeft = 6;
+                box.style.paddingTop = 4;
+                box.style.paddingBottom = 4;
+                box.style.borderLeftWidth = 3;
+                box.style.borderLeftColor = Warning;
+                box.style.backgroundColor = new Color(0.95f, 0.72f, 0.20f, 0.08f);
+
+                for (var i = 0; i < warnings.Count; i++)
+                {
+                    var warning = new Label(warnings[i]);
+                    warning.style.fontSize = 10;
+                    warning.style.color = Warning;
+                    warning.style.whiteSpace = WhiteSpace.Normal;
+                    box.Add(warning);
+                }
+
+                content.Add(box);
+            }
+
+            if (snapshot != null)
+            {
+                var stats = new Label(
+                    $"total {snapshot.Total}  spawned {snapshot.Spawned}  despawned {snapshot.Despawned}  " +
+                    $"peak {snapshot.PeakSpawned}  instantiated {snapshot.Instantiated}  reused {snapshot.Reused}  " +
+                    $"limit hits {snapshot.LimitHits}  culled {snapshot.Culled}  avg {snapshot.AverageSpawnMilliseconds:0.000} ms");
+                stats.style.fontSize = 10;
+                stats.style.color = Muted;
+                stats.style.whiteSpace = WhiteSpace.Normal;
+                stats.style.marginTop = 4;
+                content.Add(stats);
+            }
+
+            if (Application.isPlaying && prefab != null)
+            {
+                var actions = new VisualElement();
+                actions.AddToClassList("action-toolbar");
+                actions.style.marginTop = 4;
+
+                actions.Add(UnityUtilsUIStyle.CreateButton("Spawn 1", "btn-secondary", () =>
+                {
+                    _pool.Spawn(prefab);
+                    RefreshLive();
+                }));
+
+                actions.Add(UnityUtilsUIStyle.CreateButton("Despawn All", "btn-secondary", () =>
+                {
+                    var prefabPool = _pool.GetPrefabPool(prefab);
+                    if (prefabPool == null) return;
+
+                    var spawned = prefabPool.spawned;
+                    for (var i = 0; i < spawned.Count; i++)
+                        _pool.Despawn(spawned[i]);
+
+                    RefreshLive();
+                }));
+
+                actions.Add(UnityUtilsUIStyle.CreateButton("Trim Despawned", "btn-secondary", () =>
+                {
+                    _pool.GetPrefabPool(prefab)?.TrimDespawned(0);
+                    RefreshLive();
+                }));
+
+                content.Add(actions);
+            }
+
+            return container;
+        }
+
+        private void AddPrefabPool()
+        {
+            serializedObject.Update();
+
+            var list = serializedObject.FindProperty(nameof(SpawnPool._perPrefabPoolOptions));
+            list.arraySize++;
+
+            var element = list.GetArrayElementAtIndex(list.arraySize - 1);
+            element.FindPropertyRelative(nameof(PrefabPool.prefab)).objectReferenceValue = null;
+            element.FindPropertyRelative(nameof(PrefabPool.preloadAmount)).intValue = 1;
+            element.FindPropertyRelative(nameof(PrefabPool.preloadTime)).boolValue = false;
+            element.FindPropertyRelative(nameof(PrefabPool.preloadFrames)).intValue = 2;
+            element.FindPropertyRelative(nameof(PrefabPool.preloadDelay)).floatValue = 0f;
+            element.FindPropertyRelative(nameof(PrefabPool.limitInstances)).boolValue = false;
+            element.FindPropertyRelative(nameof(PrefabPool.limitAmount)).intValue = 100;
+            element.FindPropertyRelative(nameof(PrefabPool.limitFIFO)).boolValue = false;
+            element.FindPropertyRelative(nameof(PrefabPool.reuseMode)).enumValueIndex = 0;
+            element.FindPropertyRelative(nameof(PrefabPool.cullDespawned)).boolValue = false;
+            element.FindPropertyRelative(nameof(PrefabPool.cullAbove)).intValue = 50;
+            element.FindPropertyRelative(nameof(PrefabPool.cullDelay)).intValue = 60;
+            element.FindPropertyRelative(nameof(PrefabPool.cullMaxPerPass)).intValue = 5;
+            element.FindPropertyRelative(nameof(PrefabPool._logMessages)).boolValue = false;
+
+            serializedObject.ApplyModifiedProperties();
+            RefreshPrefabList();
+        }
+
+        private void RemovePrefabPool(int index)
+        {
+            serializedObject.Update();
+
+            var list = serializedObject.FindProperty(nameof(SpawnPool._perPrefabPoolOptions));
+            if (index < 0 || index >= list.arraySize) return;
+
+            list.DeleteArrayElementAtIndex(index);
+            serializedObject.ApplyModifiedProperties();
+            RefreshPrefabList();
+        }
+
+        private static List<string> ValidatePrefabPool(SerializedProperty element)
+        {
+            var warnings = new List<string>();
+
+            var prefab = element.FindPropertyRelative(nameof(PrefabPool.prefab)).objectReferenceValue as Transform;
+            if (prefab == null)
+            {
+                warnings.Add("No prefab assigned; this entry will be skipped.");
+                return warnings;
+            }
+
+            var preload = element.FindPropertyRelative(nameof(PrefabPool.preloadAmount)).intValue;
+            var limitOn = element.FindPropertyRelative(nameof(PrefabPool.limitInstances)).boolValue;
+            var limit = element.FindPropertyRelative(nameof(PrefabPool.limitAmount)).intValue;
+            var cullOn = element.FindPropertyRelative(nameof(PrefabPool.cullDespawned)).boolValue;
+            var cullAbove = element.FindPropertyRelative(nameof(PrefabPool.cullAbove)).intValue;
+            var preloadTime = element.FindPropertyRelative(nameof(PrefabPool.preloadTime)).boolValue;
+            var preloadFrames = element.FindPropertyRelative(nameof(PrefabPool.preloadFrames)).intValue;
+
+            if (limitOn && limit <= 0)
+                warnings.Add("Limit Amount must be greater than zero.");
+
+            if (limitOn && preload > limit)
+                warnings.Add("Preload Amount is greater than Limit Amount; it will be clamped at runtime.");
+
+            if (cullOn && preload >= cullAbove)
+                warnings.Add("Cull Above should be greater than Preload Amount, otherwise culling triggers immediately.");
+
+            if (preloadTime && preloadFrames > preload)
+                warnings.Add("Preload Frames is greater than Preload Amount; it will be clamped at runtime.");
+
+            return warnings;
+        }
+
+        private Dictionary<string, PrefabPoolSnapshot> GetLivePrefabMap()
+        {
+            var map = new Dictionary<string, PrefabPoolSnapshot>(StringComparer.Ordinal);
+            if (!Application.isPlaying || _pool == null) return map;
+
+            var snapshot = _pool.GetSnapshot();
+            for (var i = 0; i < snapshot.Prefabs.Count; i++)
+                map[snapshot.Prefabs[i].PrefabName] = snapshot.Prefabs[i];
+
+            return map;
+        }
+
+        private void RefreshLive()
+        {
+            if (_pool == null) return;
+
+            if (!Application.isPlaying)
+            {
+                _spawnedMetric.text = "-";
+                _despawnedMetric.text = "-";
+                _instantiatedMetric.text = "-";
+                _reusedMetric.text = "-";
+                _liveContainer?.Clear();
+                return;
+            }
+
+            var snapshot = _pool.GetSnapshot();
+            _spawnedMetric.text = snapshot.Spawned.ToString();
+            _despawnedMetric.text = snapshot.Despawned.ToString();
+            _instantiatedMetric.text = snapshot.Instantiated.ToString();
+            _reusedMetric.text = snapshot.Reused.ToString();
+
+            if (_liveContainer == null) return;
+            _liveContainer.Clear();
+
+            var summary = new Label(
+                $"total {snapshot.Total}   peak {snapshot.PeakSpawned}   limit hits {snapshot.LimitHits}   " +
+                $"culled {snapshot.Culled}   avg spawn {snapshot.AverageSpawnMilliseconds:0.000} ms");
+            summary.style.fontSize = 10;
+            summary.style.color = Muted;
+            summary.style.whiteSpace = WhiteSpace.Normal;
+            _liveContainer.Add(summary);
+
+            var actions = new VisualElement();
+            actions.AddToClassList("action-toolbar");
+            actions.style.marginTop = 4;
+
+            actions.Add(UnityUtilsUIStyle.CreateButton("Despawn All", "btn-secondary", () =>
+            {
+                _pool.DespawnAll();
+                RefreshLive();
+            }));
+
+            actions.Add(UnityUtilsUIStyle.CreateButton("Trim Despawned", "btn-secondary", () =>
+            {
+                _pool.Trim(0);
+                RefreshLive();
+            }));
+
+            _liveContainer.Add(actions);
+        }
+
+        private VisualElement Property(string propertyName)
+        {
+            return Property(serializedObject.FindProperty(propertyName), propertyName);
+        }
+
+        private VisualElement PropertyFromParent(SerializedProperty parent, string relativeName)
+        {
+            return Property(parent?.FindPropertyRelative(relativeName), relativeName);
+        }
+
+        private VisualElement Property(SerializedProperty property, string label = null)
+        {
+            if (property == null)
+                return new Label($"Missing property: {label}");
+
+            var field = new PropertyField(property)
+            {
+                bindingPath = property.propertyPath
+            };
+            field.Bind(serializedObject);
+            return field;
+        }
+    }
+}
+

@@ -1,8 +1,8 @@
 {
   "name": "com.wagenheimer.unityutils",
-  "version": "1.18.2",
+  "version": "1.19.0",
   "displayName": "Unity Utils",
-  "description": "Unity Editor productivity utilities: UI Toolkit dashboard, Bootstrap Scene Kit with diagnostic checker and one-click fixes, comprehensive Project Cleanup Suite, Third-Party Asset Slimmer (usage audit, extract-used-only, URP shader port), Mobile Optimizer (texture/audio/Android build best practices with one-click fixes), and Android App Bundle tools.",
+  "description": "Unity Editor productivity utilities: UI Toolkit dashboard, Bootstrap Scene Kit with diagnostic checker and one-click fixes, comprehensive Project Cleanup Suite, Third-Party Asset Slimmer (usage audit, extract-used-only, URP shader port), Mobile Optimizer (texture/audio/Android build best practices with one-click fixes), modern PoolManager replacement with automatic legacy migration, and Android App Bundle tools.",
   "unity": "2021.3",
   "author": {
     "name": "Cezar Wagenheimer",
@@ -19,7 +19,12 @@
     "2dxfx",
     "urp",
     "optimization",
-    "mobile"
+    "mobile",
+    "pooling",
+    "pool-manager",
+    "spawn-pool",
+    "object-pool",
+    "migration"
   ],
   "category": "Tools",
   "dependencies": {

@@ -34,6 +34,10 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
   - **Audio**: clips without a mobile override, long clips (>= 20 s) not streaming, Decompress On Load above ~1 MB. Fix: Vorbis, Streaming + Load In Background for long clips, Compressed In Memory at 22 kHz for SFX.
   - **Android project**: Texture Compression Formats containing ETC1 (fix: ASTC + ETC2) and ARMv7 (reported as Info, fix asks for confirmation).
   - Built-in best-practices guide explaining every rule.
+- **Pooling System (PoolManager replacement)**:
+  - Source-compatible `SpawnPool` / `PrefabPool` / `SpawnManager.Pools` API with O(1) lookups, FIFO/LIFO reuse and allocation-free delayed despawn/audio/particle scheduling.
+  - UI Toolkit `SpawnPool` inspector with per-prefab cards, validation and live counters, plus a runtime `PoolDebugOverlay` (`F8`) with search, Despawn/Trim actions and a copyable report.
+  - **Automatic legacy migration** from Path-o-logical PoolManager: detects `SpawnPool`/`PreRuntimePoolItem` components, preserves serialized data, rewrites `using PathologicalGames;`, moves the old plugin out of `Assets`, and keeps a full backup with one-click restore.
 - **Android App Bundle Size Warning Tool**:
   - Inspects and toggles Unity's built-in 200 MB App Bundle size validation warning (`Player Settings > Other Settings > Warn about App Bundle size`) directly from menus or automated CI build scripts.
 - **Runtime Optimization Helpers**:
@@ -68,7 +72,7 @@ Tools > Wagenheimer > Unity Utils > Check for Updates...
 
 Open the central UI Toolkit dashboard via **`Tools > Wagenheimer > Unity Utils > Dashboard...`**.
 
-The dashboard is structured into five primary workspaces:
+The dashboard is structured into the following workspaces:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -117,6 +121,29 @@ The dashboard is structured into five primary workspaces:
 - Choose platforms (Android / iOS) and the max texture size, then **Scan Build Assets**.
 - Each finding lists the affected assets and why it matters; **Fix** applies it through the importer API (SaveAndReimport), **Fix All Safe Issues** applies every warning/error (Info items such as ARMv7 stay manual).
 - Measure on a device afterwards: scene load time and memory (Memory Profiler).
+
+### 5. Pooling & Migration
+- **Runtime Pools**: live pool/prefab counters while playing, with Despawn All and Trim actions.
+- **Legacy PoolManager Migration**: scan, preview and migrate the Path-o-logical PoolManager. Components keep their serialized prefab/preload/limit/cull settings; scripts get the new namespace; the old plugin folders are moved out of `Assets`.
+- **Backups**: every changed file and removed folder is copied to `Library/UnityUtilsPoolMigrationBackup/<timestamp>`; restore from the dashboard.
+- **Settings**: create `Assets/Resources/Wagenheimer/SpawnManagerSettings.asset` to configure log level, legacy messages, the runtime overlay and auto-created pool defaults.
+
+Runtime usage is intentionally familiar:
+
+```csharp
+SpawnManager.Pools["level"].Spawn(prefab, position, rotation);
+SpawnManager.Pools["level"].Despawn(instance, 2f);
+
+// Optional: no reflection, no BroadcastMessage
+public class Bullet : MonoBehaviour, IPoolable
+{
+    public void OnSpawned(SpawnPool pool) { }
+    public void OnDespawned(SpawnPool pool) { }
+}
+```
+
+The runtime overlay is toggled with `F8` (configurable) and can be created manually with
+`PoolDebugOverlay.CreateOverlay()`.
 
 ### 5. Android & Tools
 - **App Bundle Size Warning**:
