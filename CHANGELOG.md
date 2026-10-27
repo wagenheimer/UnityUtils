@@ -2,6 +2,13 @@ name: UnityUtils
 
 # Changelog
 
+## [1.19.1] - 2026-10-27
+
+### Added
+- pooling: SpawnPool inspector improvements — **Expand All / Collapse All** for the per-prefab cards,
+  **Ping Pool**, **Ping Prefab** and per-instance **Ping** buttons (active and optional despawned instances),
+  plus a live instance list that refreshes without rebuilding the editable fields.
+
 ## [1.19.0] - 2026-10-27
 
 ### Added

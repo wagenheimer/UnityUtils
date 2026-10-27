@@ -31,6 +31,19 @@ namespace Wagenheimer.UnityUtils.Editor
         private Label _instantiatedMetric;
         private Label _reusedMetric;
 
+        private readonly List<Foldout> _prefabFoldouts = new List<Foldout>();
+        private readonly List<PrefabInstancesView> _instanceViews = new List<PrefabInstancesView>();
+        private readonly Dictionary<string, bool> _foldoutStates = new Dictionary<string, bool>();
+        private bool _showDespawned;
+
+        private sealed class PrefabInstancesView
+        {
+            public Transform Prefab;
+            public Foldout Foldout;
+            public VisualElement Container;
+            public int LastSignature = int.MinValue;
+        }
+
         public override VisualElement CreateInspectorGUI()
         {
             _pool = (SpawnPool)target;
@@ -102,6 +115,11 @@ namespace Wagenheimer.UnityUtils.Editor
                 Application.isPlaying ? "PLAYING" : "EDIT MODE",
                 Application.isPlaying ? "badge-pass" : "badge-info");
             row.Add(status);
+
+            var pingPool = UnityUtilsUIStyle.CreateButton("Ping Pool", "btn-secondary", () => Ping(_pool.gameObject));
+            pingPool.tooltip = "Ping this pool's GameObject in the Hierarchy.";
+            pingPool.style.marginLeft = 6;
+            row.Add(pingPool);
             body.Add(row);
 
             _statusLabel = new Label(Application.isPlaying
@@ -164,13 +182,28 @@ namespace Wagenheimer.UnityUtils.Editor
             toolbar.AddToClassList("action-toolbar");
             toolbar.style.marginTop = 0;
             toolbar.style.borderTopWidth = 0;
+            toolbar.style.flexWrap = Wrap.Wrap;
 
             toolbar.Add(UnityUtilsUIStyle.CreateButton("Add Prefab Pool", "btn-primary", AddPrefabPool));
+            toolbar.Add(UnityUtilsUIStyle.CreateButton("Expand All", "btn-secondary", () => SetAllFoldouts(true)));
+            toolbar.Add(UnityUtilsUIStyle.CreateButton("Collapse All", "btn-secondary", () => SetAllFoldouts(false)));
+            toolbar.Add(UnityUtilsUIStyle.CreateButton("Refresh Instances", "btn-secondary", () => RefreshInstanceViews(true)));
             toolbar.Add(UnityUtilsUIStyle.CreateButton("Validate", "btn-secondary", () =>
             {
                 serializedObject.Update();
                 RefreshPrefabList();
             }));
+
+            var showDespawned = new Toggle("Show despawned") { value = _showDespawned };
+            showDespawned.style.marginLeft = 10;
+            showDespawned.style.marginRight = 4;
+            showDespawned.RegisterValueChangedCallback(e =>
+            {
+                _showDespawned = e.newValue;
+                RefreshInstanceViews(true);
+            });
+            toolbar.Add(showDespawned);
+
             body.Add(toolbar);
 
             _prefabList = new VisualElement();
@@ -185,6 +218,8 @@ namespace Wagenheimer.UnityUtils.Editor
             if (_prefabList == null) return;
 
             _prefabList.Clear();
+            _prefabFoldouts.Clear();
+            _instanceViews.Clear();
 
             var listProperty = serializedObject.FindProperty(nameof(SpawnPool._perPrefabPoolOptions));
             if (listProperty == null || listProperty.arraySize == 0)
@@ -201,6 +236,8 @@ namespace Wagenheimer.UnityUtils.Editor
 
             for (var i = 0; i < listProperty.arraySize; i++)
                 _prefabList.Add(BuildPrefabPool(listProperty.GetArrayElementAtIndex(i), i, live));
+
+            RefreshInstanceViews(true);
         }
 
         private VisualElement BuildPrefabPool(SerializedProperty element, int index, Dictionary<string, PrefabPoolSnapshot> live)
@@ -221,9 +258,19 @@ namespace Wagenheimer.UnityUtils.Editor
             header.style.flexDirection = FlexDirection.Row;
             header.style.alignItems = Align.Center;
 
-            var foldout = new Foldout { text = prefabName, value = true };
+            var foldoutKey = prefab != null ? "p" + prefab.GetHashCode() : "i" + index;
+            var expanded = !_foldoutStates.TryGetValue(foldoutKey, out var storedExpanded) || storedExpanded;
+
+            var foldout = new Foldout { text = prefabName, value = expanded };
             foldout.style.flexGrow = 1;
             foldout.style.fontSize = 11;
+            foldout.RegisterValueChangedCallback(e =>
+            {
+                _foldoutStates[foldoutKey] = e.newValue;
+                if (e.newValue)
+                    RefreshInstanceViews(true);
+            });
+            _prefabFoldouts.Add(foldout);
             header.Add(foldout);
 
             if (snapshot != null)
@@ -233,6 +280,14 @@ namespace Wagenheimer.UnityUtils.Editor
                     snapshot.LimitHits > 0 ? "badge-warning" : "badge-pass");
                 badge.style.marginRight = 6;
                 header.Add(badge);
+            }
+
+            if (prefab != null)
+            {
+                var pingPrefab = UnityUtilsUIStyle.CreateButton("Ping Prefab", "btn-secondary", () => Ping(prefab.gameObject));
+                pingPrefab.tooltip = "Ping the prefab asset in the Project window.";
+                pingPrefab.style.marginLeft = 4;
+                header.Add(pingPrefab);
             }
 
             var remove = UnityUtilsUIStyle.CreateButton("Remove", "btn-danger", () => RemovePrefabPool(index));
@@ -331,7 +386,178 @@ namespace Wagenheimer.UnityUtils.Editor
                 content.Add(actions);
             }
 
+            var instancesContainer = new VisualElement();
+            instancesContainer.style.marginTop = 4;
+            content.Add(instancesContainer);
+
+            _instanceViews.Add(new PrefabInstancesView
+            {
+                Prefab = prefab,
+                Foldout = foldout,
+                Container = instancesContainer
+            });
+
             return container;
+        }
+
+        private void SetAllFoldouts(bool expanded)
+        {
+            for (var i = 0; i < _prefabFoldouts.Count; i++)
+            {
+                if (_prefabFoldouts[i] != null)
+                    _prefabFoldouts[i].value = expanded;
+            }
+
+            RefreshInstanceViews(true);
+        }
+
+        private void RefreshInstanceViews(bool force = false)
+        {
+            if (_instanceViews.Count == 0) return;
+
+            for (var i = 0; i < _instanceViews.Count; i++)
+            {
+                var view = _instanceViews[i];
+                if (view?.Container == null) continue;
+
+                if (!Application.isPlaying)
+                {
+                    if (!force && view.LastSignature == -1) continue;
+
+                    view.Container.Clear();
+                    view.Container.Add(MutedLabel("Enter Play Mode to list instances."));
+                    view.LastSignature = -1;
+                    continue;
+                }
+
+                if (view.Foldout != null && !view.Foldout.value && !force)
+                    continue;
+
+                var prefabPool = view.Prefab != null ? _pool.GetPrefabPool(view.Prefab) : null;
+                if (prefabPool == null)
+                {
+                    if (!force && view.LastSignature == 0) continue;
+
+                    view.Container.Clear();
+                    view.Container.Add(MutedLabel("Not instantiated yet."));
+                    view.LastSignature = 0;
+                    continue;
+                }
+
+                var spawned = prefabPool.spawned;
+                var despawned = _showDespawned ? prefabPool.despawned : null;
+                var signature = ComputeSignature(spawned, despawned);
+                if (!force && signature == view.LastSignature) continue;
+
+                view.LastSignature = signature;
+                view.Container.Clear();
+
+                AddInstanceSection(view.Container, "Spawned", spawned, true);
+                if (_showDespawned)
+                    AddInstanceSection(view.Container, "Despawned", despawned, false);
+            }
+        }
+
+        private void AddInstanceSection(VisualElement container, string title, List<Transform> instances, bool spawned)
+        {
+            var header = new VisualElement();
+            header.style.flexDirection = FlexDirection.Row;
+            header.style.alignItems = Align.Center;
+            header.style.marginTop = 4;
+
+            var label = new Label($"{title} ({instances?.Count ?? 0})");
+            label.style.fontSize = 10;
+            label.style.unityFontStyleAndWeight = FontStyle.Bold;
+            label.style.color = spawned ? new Color(0.55f, 0.85f, 1f) : Muted;
+            header.Add(label);
+            container.Add(header);
+
+            if (instances == null || instances.Count == 0)
+            {
+                container.Add(MutedLabel("  None."));
+                return;
+            }
+
+            // Keep the inspector responsive even with a huge pool.
+            var max = Mathf.Min(instances.Count, 100);
+            for (var i = 0; i < max; i++)
+            {
+                var instance = instances[i];
+                if (instance == null) continue;
+
+                var row = new VisualElement();
+                row.style.flexDirection = FlexDirection.Row;
+                row.style.alignItems = Align.Center;
+                row.style.paddingLeft = 8;
+
+                var name = new Label(instance.name);
+                name.style.fontSize = 10;
+                name.style.color = spawned ? Color.white : Muted;
+                name.style.flexGrow = 1;
+                name.style.whiteSpace = WhiteSpace.Normal;
+                row.Add(name);
+
+                var ping = UnityUtilsUIStyle.CreateButton("Ping", "btn-secondary", () => Ping(instance.gameObject));
+                ping.tooltip = spawned
+                    ? "Ping this active instance in the Hierarchy."
+                    : "Ping this despawned instance in the Hierarchy.";
+                ping.style.marginLeft = 4;
+                ping.style.height = 20;
+                row.Add(ping);
+
+                container.Add(row);
+            }
+
+            if (instances.Count > max)
+                container.Add(MutedLabel($"  ... and {instances.Count - max} more"));
+        }
+
+        private static int ComputeSignature(List<Transform> spawned, List<Transform> despawned)
+        {
+            unchecked
+            {
+                var hash = 17;
+                hash = hash * 31 + (spawned?.Count ?? 0);
+
+                if (spawned != null)
+                {
+                    for (var i = 0; i < spawned.Count; i++)
+                    {
+                        var instance = spawned[i];
+                        hash = hash * 31 + (instance != null ? instance.GetHashCode() : 0);
+                        hash = hash * 31 + (instance != null ? instance.name.GetHashCode() : 0);
+                    }
+                }
+
+                hash = hash * 31 + (despawned?.Count ?? 0);
+
+                if (despawned != null)
+                {
+                    for (var i = 0; i < despawned.Count; i++)
+                    {
+                        var instance = despawned[i];
+                        hash = hash * 31 + (instance != null ? instance.GetHashCode() : 0);
+                        hash = hash * 31 + (instance != null ? instance.name.GetHashCode() : 0);
+                    }
+                }
+
+                return hash;
+            }
+        }
+
+        private static void Ping(Object obj)
+        {
+            if (obj == null) return;
+            EditorGUIUtility.PingObject(obj);
+        }
+
+        private static Label MutedLabel(string text)
+        {
+            var label = new Label(text);
+            label.style.fontSize = 10;
+            label.style.color = Muted;
+            label.style.whiteSpace = WhiteSpace.Normal;
+            return label;
         }
 
         private void AddPrefabPool()
@@ -430,6 +656,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 _instantiatedMetric.text = "-";
                 _reusedMetric.text = "-";
                 _liveContainer?.Clear();
+                RefreshInstanceViews();
                 return;
             }
 
@@ -467,6 +694,7 @@ namespace Wagenheimer.UnityUtils.Editor
             }));
 
             _liveContainer.Add(actions);
+            RefreshInstanceViews();
         }
 
         private VisualElement Property(string propertyName)
