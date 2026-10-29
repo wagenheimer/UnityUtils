@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.19.2] - 2026-10-29
+
+### Changed
+- docs: update install pin and version badge to the current release
+
 ## [1.19.1] - 2026-10-27
 
 ### Added
