@@ -57,7 +57,7 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
    ```
    https://github.com/wagenheimer/UnityUtils.git
    ```
-4. To target a specific version tag, append `#vX.Y.Z` (e.g., `#v1.19.1`).
+4. To target a specific version tag, append `#vX.Y.Z` (use a tag from the [Releases](https://github.com/wagenheimer/UnityUtils/releases) page).
 
 ### Package Hub Integration
 
