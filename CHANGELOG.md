@@ -2,6 +2,16 @@ name: UnityUtils
 
 # Changelog
 
+## [1.21.0] - 2026-10-30
+
+### Added
+- add shared vector, color, list and time helpers
+
+### Changed
+- chore: add issue and pull request templates [skip ci]
+- chore: add issue/PR templates and ecosystem footer [skip ci]
+- docs: use a version placeholder for the install pin [skip ci]
+
 ## [1.20.0] - 2026-10-29
 
 ### Added
