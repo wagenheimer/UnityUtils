@@ -128,5 +128,84 @@ namespace Wagenheimer.UnityUtils
             var result = new Vector2(0 - (viewportLocalPosition.x + childLocalPosition.x), 0 - (viewportLocalPosition.y + childLocalPosition.y));
             return result;
         }
+
+        // -----------------------------------------------------------------------------------------
+        // Vector / color helpers
+        // -----------------------------------------------------------------------------------------
+
+        /// <summary>Returns the vector moved by the given (floating point) offset.</summary>
+        public static Vector3 Translate(this Vector3 position, float x, float y, float z)
+        {
+            return new Vector3(position.x + x, position.y + y, position.z + z);
+        }
+
+        /// <summary>Returns the color with the given alpha (0-1).</summary>
+        public static Color ChangeAlpha(this Color color, float alpha)
+        {
+            color.a = alpha;
+            return color;
+        }
+
+        /// <summary>Returns the color with the given alpha (0-1). Same as <see cref="ChangeAlpha(Color,float)"/>.</summary>
+        public static Color SetAlpha(this Color color, float alpha)
+        {
+            return new Color(color.r, color.g, color.b, alpha);
+        }
+
+        /// <summary>Sets the horizontal offsets (left/right) of a RectTransform and returns it.</summary>
+        public static RectTransform SetLeftRight(this RectTransform rect, float left, float right)
+        {
+            rect.offsetMin = new Vector2(left, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(right, rect.offsetMax.y);
+            return rect;
+        }
+
+        /// <summary>True when a random roll between 0 and 100 is less than or equal to <paramref name="probability"/>.</summary>
+        public static bool CheckRandom(float probability)
+        {
+            return Random.Range(0, 100) <= probability;
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Collections / formatting helpers
+        // -----------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Sorts the list in place by the given selector (ascending). Unlike
+        /// <see cref="List{T}.Sort(Comparison{T})"/> it accepts a single-argument projection:
+        /// <c>list.SortBy(x => x.New);</c>
+        /// </summary>
+        public static void SortBy<T, U>(this List<T> list, Func<T, U> selector) where U : IComparable<U>
+        {
+            list.Sort((x, y) => selector(x).CompareTo(selector(y)));
+        }
+
+        /// <summary>
+        /// Human readable duration using localized unit abbreviations, e.g. "2 d 3 h 4 min 5 s".
+        /// Pass the game's translation callback (e.g. <c>LocalizationManager.GetTranslation</c>) to localize
+        /// the <c>Global/*abrev</c> keys; when omitted, English abbreviations are used.
+        /// </summary>
+        public static string AsReadableString(this TimeSpan span, Func<string, string> translate = null)
+        {
+            string T(string key) => translate != null ? translate(key) : DefaultTimeUnit(key);
+
+            var duration = span.Duration();
+            var formatted = string.Format("{0}{1}{2}{3}",
+                duration.Days > 0 ? $"{span.Days:0} {T("Global/daysabrev")} " : string.Empty,
+                duration.Hours > 0 ? $"{span.Hours:0} {T("Global/hoursabrev")} " : string.Empty,
+                duration.Minutes > 0 ? $"{span.Minutes:0} {T("Global/minutesabrev")} " : string.Empty,
+                duration.Seconds > 0 ? $"{span.Seconds:0} {T("Global/secondsabrev")}" : string.Empty);
+
+            return string.IsNullOrEmpty(formatted) ? $"0 {T("Global/secondsabrev")}" : formatted;
+        }
+
+        private static string DefaultTimeUnit(string key) => key switch
+        {
+            "Global/daysabrev" => "d",
+            "Global/hoursabrev" => "h",
+            "Global/minutesabrev" => "min",
+            "Global/secondsabrev" => "s",
+            _ => ""
+        };
     }
 }

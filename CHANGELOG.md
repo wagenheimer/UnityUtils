@@ -2,6 +2,18 @@ name: UnityUtils
 
 # Changelog
 
+## [1.20.0] - 2026-10-29
+
+### Added
+- runtime: shared helpers migrated from game projects into `UnityExtensions`:
+  - `Translate(Vector3, float, float, float)` (floating point overload next to the existing `int` one)
+  - `ChangeAlpha(Color, float)` and `SetAlpha(Color, float)` returning the resulting `Color`
+  - `SetLeftRight(RectTransform, float, float)`
+  - `CheckRandom(float)`
+  - `SortBy<T, U>(List<T>, Func<T, U>)` for single-argument projections (`list.SortBy(x => x.New)`)
+  - `AsReadableString(TimeSpan, Func<string, string>)` with an optional translation callback
+    (e.g. I2 `LocalizationManager.GetTranslation`); English abbreviations when omitted.
+
 ## [1.19.2] - 2026-10-29
 
 ### Changed
