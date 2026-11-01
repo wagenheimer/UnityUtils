@@ -23,6 +23,7 @@ namespace Wagenheimer.UnityUtils.Editor
             public int AffectedScenesCount;
             public int AffectedPrefabsCount;
             public List<string> Details;
+            public List<CleanupIssueItem> Items;
         }
 
         #region Menu Items
@@ -117,13 +118,15 @@ namespace Wagenheimer.UnityUtils.Editor
             public int DuplicatesRemoved;
             public int ScenesModified;
             public int PrefabsModified;
+            public List<CleanupModificationRecord> Modifications;
         }
 
         public static ScanResult ScanProject()
         {
             var scan = new ScanResult
             {
-                Details = new List<string>()
+                Details = new List<string>(),
+                Items = new List<CleanupIssueItem>()
             };
 
             if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
@@ -152,6 +155,18 @@ namespace Wagenheimer.UnityUtils.Editor
                         scan.DuplicateCount += duplicates;
                         scan.AffectedScenesCount++;
                         scan.Details.Add($"[Scene] {scenePath}: {listeners.Count} AudioListeners found ({duplicates} duplicate(s))");
+                        
+                        var gameObjectsSummary = string.Join(", ", listeners.Select(l => l != null && l.gameObject != null ? l.gameObject.name : "null"));
+                        scan.Items.Add(new CleanupIssueItem
+                        {
+                            AssetPath = scenePath,
+                            TargetName = scene.name,
+                            Description = $"{listeners.Count} AudioListeners found ({duplicates} duplicate(s)) on: {gameObjectsSummary}",
+                            Category = "AudioListener",
+                            IsScene = true,
+                            IsPrefab = false,
+                            Count = duplicates
+                        });
                     }
                 }
             }
@@ -176,6 +191,18 @@ namespace Wagenheimer.UnityUtils.Editor
                     scan.DuplicateCount += duplicates;
                     scan.AffectedPrefabsCount++;
                     scan.Details.Add($"[Prefab] {prefabPath}: {listeners.Length} AudioListeners found ({duplicates} duplicate(s))");
+
+                    var gameObjectsSummary = string.Join(", ", listeners.Select(l => l != null && l.gameObject != null ? l.gameObject.name : "null"));
+                    scan.Items.Add(new CleanupIssueItem
+                    {
+                        AssetPath = prefabPath,
+                        TargetName = prefab.name,
+                        Description = $"{listeners.Length} AudioListeners found ({duplicates} duplicate(s)) on: {gameObjectsSummary}",
+                        Category = "AudioListener",
+                        IsScene = false,
+                        IsPrefab = true,
+                        Count = duplicates
+                    });
                 }
             }
 
@@ -184,7 +211,10 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static CleanResult CleanAllScenes(bool removeAllNonPersistent, string bootstrapSceneNameToSkip = null)
         {
-            var result = new CleanResult();
+            var result = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
             if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
                 return result;
 
@@ -218,6 +248,14 @@ namespace Wagenheimer.UnityUtils.Editor
 
                     result.DuplicatesRemoved += removed;
                     result.ScenesModified++;
+                    result.Modifications.Add(new CleanupModificationRecord
+                    {
+                        AssetPath = scenePath,
+                        ActionTaken = $"Removed {removed} duplicate AudioListener(s)",
+                        ItemsFixed = removed,
+                        IsScene = true,
+                        IsPrefab = false
+                    });
                     EditorSceneManager.MarkSceneDirty(scene);
                     EditorSceneManager.SaveScene(scene);
                 }
@@ -236,7 +274,10 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             var preferredPrefabPath = GetPreferredPrefabPath();
             var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-            var result = new CleanResult();
+            var result = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
 
             try
             {
@@ -253,6 +294,14 @@ namespace Wagenheimer.UnityUtils.Editor
 
                     result.DuplicatesRemoved += removed;
                     result.PrefabsModified++;
+                    result.Modifications.Add(new CleanupModificationRecord
+                    {
+                        AssetPath = prefabPath,
+                        ActionTaken = $"Removed {removed} duplicate AudioListener(s)",
+                        ItemsFixed = removed,
+                        IsScene = false,
+                        IsPrefab = true
+                    });
                 }
             }
             finally

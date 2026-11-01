@@ -2,6 +2,14 @@ name: UnityUtils
 
 # Changelog
 
+## [1.22.0] - 2026-11-01
+
+### Added
+- cleanup: interactive scan result panels displaying affected assets/scenes/prefabs under each cleaner card with one-click Ping/Inspect.
+- cleanup: contextual diagnostic explanation and recommended solution cards with quick-apply action buttons.
+- cleanup: before/after improvement panels showing diff statistics and modified assets log after repairs.
+- cleanup: added project-wide scan for legacy plugin metadata (`PluginImporter` serialization version 1) with one-click modernizer.
+
 ## [1.21.0] - 2026-10-30
 
 ### Added

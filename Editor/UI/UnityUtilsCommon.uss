@@ -350,3 +350,174 @@
     margin-right: 3px;
 }
 
+
+
+/* ---------------- SCAN RESULTS & SOLUTIONS ---------------- */
+.scan-result-panel {
+    margin-top: 10px;
+    border-top-width: 1px;
+    border-top-color: var(--border-color);
+    padding-top: 10px;
+    flex-direction: column;
+}
+
+.clean-success-banner {
+    background-color: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 8px 12px;
+    flex-direction: row;
+    align-items: center;
+}
+
+.clean-success-text {
+    color: var(--color-success);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+.solution-banner {
+    background-color: rgba(99, 102, 241, 0.1);
+    border-color: rgba(99, 102, 241, 0.35);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-left-width: 3px;
+    border-left-color: var(--accent-primary);
+}
+
+.solution-title {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: #A5B4FC;
+    margin-bottom: 3px;
+}
+
+.solution-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: normal;
+    margin-bottom: 8px;
+}
+
+.solution-action-row {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.items-list-container {
+    background-color: var(--bg-input);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 6px;
+    max-height: 180px;
+    margin-bottom: 8px;
+    padding: 4px;
+}
+
+.item-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.04);
+    border-radius: 4px;
+}
+
+.item-row:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.item-content {
+    flex-direction: column;
+    flex-grow: 1;
+    margin-right: 8px;
+    overflow: hidden;
+}
+
+.item-path {
+    font-size: 11px;
+    color: var(--text-primary);
+    -unity-font-style: bold;
+}
+
+.item-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: normal;
+    margin-top: 1px;
+}
+
+.btn-ping {
+    font-size: 10px;
+    padding: 2px 8px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-color);
+    border-width: 1px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+}
+
+.btn-ping:hover {
+    background-color: rgba(99, 102, 241, 0.3);
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
+}
+
+/* ---------------- DIFF & IMPROVEMENTS PANEL ---------------- */
+.diff-card {
+    background-color: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.3);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    border-left-width: 3px;
+    border-left-color: var(--color-success);
+}
+
+.diff-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.diff-title {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: var(--color-success);
+}
+
+.diff-stat-badge {
+    background-color: rgba(16, 185, 129, 0.2);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    color: #34D399;
+}
+
+.diff-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: normal;
+    margin-bottom: 6px;
+}
+
+.diff-list {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 4px 6px;
+    max-height: 120px;
+}
+
+.diff-item {
+    font-size: 10px;
+    color: #A7F3D0;
+    margin-bottom: 2px;
+}

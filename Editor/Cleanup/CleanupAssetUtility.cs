@@ -124,5 +124,42 @@ namespace Wagenheimer.UnityUtils.Editor
                 return false;
             }
         }
+
+        public static void PingAsset(string assetPath)
+        {
+            if (string.IsNullOrEmpty(assetPath)) return;
+            var obj = AssetDatabase.LoadMainAssetAtPath(assetPath);
+            if (obj != null)
+            {
+                EditorGUIUtility.PingObject(obj);
+                Selection.activeObject = obj;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Represents an individual issue discovered during a diagnostic scan.
+    /// </summary>
+    public struct CleanupIssueItem
+    {
+        public string AssetPath;
+        public string TargetName;
+        public string Description;
+        public string Category;
+        public bool IsScene;
+        public bool IsPrefab;
+        public int Count;
+    }
+
+    /// <summary>
+    /// Records a modification or repair applied to an asset.
+    /// </summary>
+    public struct CleanupModificationRecord
+    {
+        public string AssetPath;
+        public string ActionTaken;
+        public int ItemsFixed;
+        public bool IsScene;
+        public bool IsPrefab;
     }
 }

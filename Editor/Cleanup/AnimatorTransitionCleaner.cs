@@ -31,6 +31,14 @@ namespace Wagenheimer.UnityUtils.Editor
             public int AffectedControllersCount;
             public List<InvalidTransitionInfo> InvalidTransitions;
             public List<string> Details;
+            public List<CleanupIssueItem> Items;
+        }
+
+        public struct CleanResult
+        {
+            public int TransitionsFixed;
+            public int ControllersModified;
+            public List<CleanupModificationRecord> Modifications;
         }
 
         #region Menu Items
@@ -102,7 +110,8 @@ namespace Wagenheimer.UnityUtils.Editor
             var result = new ScanResult
             {
                 InvalidTransitions = new List<InvalidTransitionInfo>(),
-                Details = new List<string>()
+                Details = new List<string>(),
+                Items = new List<CleanupIssueItem>()
             };
 
             var controllerGuids = AssetDatabase.FindAssets("t:AnimatorController");
@@ -123,6 +132,21 @@ namespace Wagenheimer.UnityUtils.Editor
 
             result.InvalidTransitionCount = result.InvalidTransitions.Count;
             result.AffectedControllersCount = controllersWithIssues.Count;
+
+            foreach (var trans in result.InvalidTransitions)
+            {
+                result.Items.Add(new CleanupIssueItem
+                {
+                    AssetPath = trans.AssetPath,
+                    TargetName = System.IO.Path.GetFileName(trans.AssetPath),
+                    Description = $"[{trans.LayerName}] {trans.SourceName} -> {trans.DestinationName} (no conditions, no Exit Time)",
+                    Category = "Animator",
+                    IsScene = false,
+                    IsPrefab = false,
+                    Count = 1
+                });
+            }
+
             return result;
         }
 
@@ -212,9 +236,19 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static int FixAll(FixMode mode)
         {
+            return CleanAll(mode).TransitionsFixed;
+        }
+
+        public static CleanResult CleanAll(FixMode mode)
+        {
+            var res = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
+
             var scan = ScanProject();
             if (scan.InvalidTransitionCount == 0)
-                return 0;
+                return res;
 
             var modifiedPaths = new HashSet<string>();
             var count = 0;
@@ -263,7 +297,21 @@ namespace Wagenheimer.UnityUtils.Editor
                 AssetDatabase.Refresh();
             }
 
-            return count;
+            res.TransitionsFixed = count;
+            res.ControllersModified = modifiedPaths.Count;
+            foreach (var path in modifiedPaths)
+            {
+                res.Modifications.Add(new CleanupModificationRecord
+                {
+                    AssetPath = path,
+                    ActionTaken = mode == FixMode.EnableExitTime ? "Enabled Exit Time on invalid transitions" : "Removed invalid transitions",
+                    ItemsFixed = count,
+                    IsScene = false,
+                    IsPrefab = false
+                });
+            }
+
+            return res;
         }
 
         #endregion

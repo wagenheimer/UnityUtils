@@ -21,11 +21,60 @@ namespace Wagenheimer.UnityUtils.Editor
             ".dll", ".so", ".a", ".bundle", ".dylib", ".jar", ".aar", ".framework", ".xcframework"
         };
 
+        public struct ScanResult
+        {
+            public int LegacyPluginCount;
+            public int TotalScenesCount;
+            public int TotalPrefabsCount;
+            public List<string> LegacyPluginPaths;
+            public List<CleanupIssueItem> Items;
+            public List<string> Details;
+        }
+
         public struct CleanResult
         {
             public int ScenesUpdated;
             public int PrefabsUpdated;
+            public int PluginsUpdated;
             public int AssetsReserialized;
+            public List<CleanupModificationRecord> Modifications;
+        }
+
+        public static ScanResult ScanProject()
+        {
+            var scan = new ScanResult
+            {
+                LegacyPluginPaths = new List<string>(),
+                Items = new List<CleanupIssueItem>(),
+                Details = new List<string>()
+            };
+
+            var legacyPlugins = FindLegacyPluginImporterPaths();
+            scan.LegacyPluginCount = legacyPlugins.Length;
+            scan.LegacyPluginPaths.AddRange(legacyPlugins);
+
+            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
+            scan.TotalScenesCount = scenePaths.Length;
+
+            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
+            scan.TotalPrefabsCount = prefabPaths.Length;
+
+            foreach (var plugin in legacyPlugins)
+            {
+                scan.Details.Add($"[Legacy Plugin Meta] {plugin}: PluginImporter serializedVersion < 2");
+                scan.Items.Add(new CleanupIssueItem
+                {
+                    AssetPath = plugin,
+                    TargetName = Path.GetFileName(plugin),
+                    Description = "PluginImporter serializedVersion < 2 (triggers Unity 6 upgrade warning)",
+                    Category = "Legacy Plugin",
+                    IsScene = false,
+                    IsPrefab = false,
+                    Count = 1
+                });
+            }
+
+            return scan;
         }
 
         #region Menu Items
@@ -181,8 +230,13 @@ namespace Wagenheimer.UnityUtils.Editor
         /// (Unity 6 warns: "contains a PluginImporter object at version 1, below the supported minimum (2)").
         /// Saving the importer is the supported way to upgrade the metadata without touching the binary.
         /// </summary>
-        public static int ResaveLegacyPluginImporters()
+        public static CleanResult ResaveLegacyPluginImportersWithResult()
         {
+            var res = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
+
             var legacyPluginPaths = FindLegacyPluginImporterPaths();
             var updated = 0;
 
@@ -202,6 +256,14 @@ namespace Wagenheimer.UnityUtils.Editor
                     {
                         importer.SaveAndReimport();
                         updated++;
+                        res.Modifications.Add(new CleanupModificationRecord
+                        {
+                            AssetPath = assetPath,
+                            ActionTaken = "Upgraded PluginImporter serialization to version 2",
+                            ItemsFixed = 1,
+                            IsScene = false,
+                            IsPrefab = false
+                        });
                     }
                     catch (Exception ex)
                     {
@@ -214,7 +276,13 @@ namespace Wagenheimer.UnityUtils.Editor
                 EditorUtility.ClearProgressBar();
             }
 
-            return updated;
+            res.PluginsUpdated = updated;
+            return res;
+        }
+
+        public static int ResaveLegacyPluginImporters()
+        {
+            return ResaveLegacyPluginImportersWithResult().PluginsUpdated;
         }
 
         private static string[] FindLegacyPluginImporterPaths()

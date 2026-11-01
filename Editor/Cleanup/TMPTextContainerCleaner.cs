@@ -20,6 +20,7 @@ namespace Wagenheimer.UnityUtils.Editor
             public int AffectedScenesCount;
             public int AffectedPrefabsCount;
             public List<string> Details;
+            public List<CleanupIssueItem> Items;
         }
 
         public struct CleanResult
@@ -27,6 +28,7 @@ namespace Wagenheimer.UnityUtils.Editor
             public int ObjectsFixed;
             public int ScenesChanged;
             public int PrefabsChanged;
+            public List<CleanupModificationRecord> Modifications;
         }
 
         #region Menu Items
@@ -72,7 +74,8 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             var scan = new ScanResult
             {
-                Details = new List<string>()
+                Details = new List<string>(),
+                Items = new List<CleanupIssueItem>()
             };
 
             if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
@@ -86,7 +89,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 for (int i = 0; i < scenePaths.Length; i++)
                 {
                     var path = scenePaths[i];
-                    if (!CleanupAssetUtility.TryOpenScene(path, out _))
+                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
                         continue;
 
                     var count = CountInCurrentScene();
@@ -95,6 +98,16 @@ namespace Wagenheimer.UnityUtils.Editor
                         scan.ObsoleteContainerCount += count;
                         scan.AffectedScenesCount++;
                         scan.Details.Add($"[Scene] {path}: {count} obsolete TextContainer(s)");
+                        scan.Items.Add(new CleanupIssueItem
+                        {
+                            AssetPath = path,
+                            TargetName = scene.name,
+                            Description = $"{count} obsolete TextContainer(s) on TextMeshPro objects",
+                            Category = "TMP TextContainer",
+                            IsScene = true,
+                            IsPrefab = false,
+                            Count = count
+                        });
                     }
                 }
 
@@ -109,6 +122,16 @@ namespace Wagenheimer.UnityUtils.Editor
                         scan.ObsoleteContainerCount += count;
                         scan.AffectedPrefabsCount++;
                         scan.Details.Add($"[Prefab] {path}: {count} obsolete TextContainer(s)");
+                        scan.Items.Add(new CleanupIssueItem
+                        {
+                            AssetPath = path,
+                            TargetName = System.IO.Path.GetFileNameWithoutExtension(path),
+                            Description = $"{count} obsolete TextContainer(s) on TextMeshPro objects",
+                            Category = "TMP TextContainer",
+                            IsScene = false,
+                            IsPrefab = true,
+                            Count = count
+                        });
                     }
                 }
             }
@@ -123,7 +146,10 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static CleanResult CleanAll()
         {
-            var result = new CleanResult();
+            var result = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
             if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
                 return result;
 
@@ -153,6 +179,14 @@ namespace Wagenheimer.UnityUtils.Editor
                     {
                         result.ObjectsFixed += fixedInScene;
                         result.ScenesChanged++;
+                        result.Modifications.Add(new CleanupModificationRecord
+                        {
+                            AssetPath = path,
+                            ActionTaken = $"Removed {fixedInScene} obsolete TextContainer(s)",
+                            ItemsFixed = fixedInScene,
+                            IsScene = true,
+                            IsPrefab = false
+                        });
                         EditorSceneManager.MarkSceneDirty(scene);
                         EditorSceneManager.SaveScene(scene);
                     }
@@ -182,6 +216,14 @@ namespace Wagenheimer.UnityUtils.Editor
                     {
                         result.ObjectsFixed += fixedInPrefab;
                         result.PrefabsChanged++;
+                        result.Modifications.Add(new CleanupModificationRecord
+                        {
+                            AssetPath = path,
+                            ActionTaken = $"Removed {fixedInPrefab} obsolete TextContainer(s)",
+                            ItemsFixed = fixedInPrefab,
+                            IsScene = false,
+                            IsPrefab = true
+                        });
                     }
                 }
             }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -21,6 +22,7 @@ namespace Wagenheimer.UnityUtils.Editor
             public int AffectedScenesCount;
             public int AffectedPrefabsCount;
             public List<string> Details;
+            public List<CleanupIssueItem> Items;
         }
 
         public struct CleanResult
@@ -28,6 +30,7 @@ namespace Wagenheimer.UnityUtils.Editor
             public int MissingScriptsRemoved;
             public int ScenesModified;
             public int PrefabsModified;
+            public List<CleanupModificationRecord> Modifications;
         }
 
         #region Menu Items
@@ -102,7 +105,8 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             var scan = new ScanResult
             {
-                Details = new List<string>()
+                Details = new List<string>(),
+                Items = new List<CleanupIssueItem>()
             };
 
             if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
@@ -119,12 +123,25 @@ namespace Wagenheimer.UnityUtils.Editor
                     if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
                         continue;
 
-                    var count = CountMissingInScene(scene);
+                    var affectedObjects = new List<string>();
+                    var count = FindMissingInScene(scene, affectedObjects);
                     if (count > 0)
                     {
                         scan.MissingScriptCount += count;
                         scan.AffectedScenesCount++;
                         scan.Details.Add($"[Scene] {scenePath}: {count} missing script(s)");
+
+                        var objectsSummary = string.Join(", ", affectedObjects.Distinct());
+                        scan.Items.Add(new CleanupIssueItem
+                        {
+                            AssetPath = scenePath,
+                            TargetName = scene.name,
+                            Description = $"{count} missing script component(s) on: {objectsSummary}",
+                            Category = "MissingScript",
+                            IsScene = true,
+                            IsPrefab = false,
+                            Count = count
+                        });
                     }
                 }
             }
@@ -141,12 +158,25 @@ namespace Wagenheimer.UnityUtils.Editor
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefab == null) continue;
 
-                var count = CountMissingInHierarchy(prefab);
+                var affectedObjects = new List<string>();
+                var count = FindMissingInHierarchy(prefab, affectedObjects);
                 if (count > 0)
                 {
                     scan.MissingScriptCount += count;
                     scan.AffectedPrefabsCount++;
                     scan.Details.Add($"[Prefab] {prefabPath}: {count} missing script(s)");
+
+                    var objectsSummary = string.Join(", ", affectedObjects.Distinct());
+                    scan.Items.Add(new CleanupIssueItem
+                    {
+                        AssetPath = prefabPath,
+                        TargetName = prefab.name,
+                        Description = $"{count} missing script component(s) on: {objectsSummary}",
+                        Category = "MissingScript",
+                        IsScene = false,
+                        IsPrefab = true,
+                        Count = count
+                    });
                 }
             }
 
@@ -155,7 +185,10 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static CleanResult CleanAllScenes()
         {
-            var result = new CleanResult();
+            var result = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
             if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
                 return result;
 
@@ -181,6 +214,14 @@ namespace Wagenheimer.UnityUtils.Editor
 
                     result.MissingScriptsRemoved += removed;
                     result.ScenesModified++;
+                    result.Modifications.Add(new CleanupModificationRecord
+                    {
+                        AssetPath = scenePath,
+                        ActionTaken = $"Removed {removed} missing script(s)",
+                        ItemsFixed = removed,
+                        IsScene = true,
+                        IsPrefab = false
+                    });
                     EditorSceneManager.MarkSceneDirty(scene);
                     EditorSceneManager.SaveScene(scene);
                 }
@@ -198,7 +239,10 @@ namespace Wagenheimer.UnityUtils.Editor
         public static CleanResult CleanAllPrefabs()
         {
             var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-            var result = new CleanResult();
+            var result = new CleanResult
+            {
+                Modifications = new List<CleanupModificationRecord>()
+            };
 
             try
             {
@@ -215,6 +259,14 @@ namespace Wagenheimer.UnityUtils.Editor
 
                     result.MissingScriptsRemoved += removed;
                     result.PrefabsModified++;
+                    result.Modifications.Add(new CleanupModificationRecord
+                    {
+                        AssetPath = prefabPath,
+                        ActionTaken = $"Removed {removed} missing script(s)",
+                        ItemsFixed = removed,
+                        IsScene = false,
+                        IsPrefab = true
+                    });
                 }
             }
             finally
@@ -223,6 +275,31 @@ namespace Wagenheimer.UnityUtils.Editor
             }
 
             return result;
+        }
+
+        private static int FindMissingInScene(Scene scene, List<string> affectedObjects)
+        {
+            var count = 0;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                count += FindMissingInHierarchy(root, affectedObjects);
+            }
+            return count;
+        }
+
+        private static int FindMissingInHierarchy(GameObject go, List<string> affectedObjects)
+        {
+            var count = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go);
+            if (count > 0)
+            {
+                affectedObjects.Add(go.name);
+            }
+
+            for (int i = 0; i < go.transform.childCount; i++)
+            {
+                count += FindMissingInHierarchy(go.transform.GetChild(i).gameObject, affectedObjects);
+            }
+            return count;
         }
 
         public static int CleanScene(Scene scene)
