@@ -30,6 +30,7 @@ namespace Wagenheimer.UnityUtils.Editor
             public string FixLabel;
             public string FixTitle;
             public Func<CleanupProgress, IEnumerator> FixRoutine;
+            public Action FixAction; // used instead of FixRoutine when the fix needs a confirmation first
         }
 
         private readonly Module _audio = new Module { Title = "Audio Listeners" };
@@ -39,6 +40,7 @@ namespace Wagenheimer.UnityUtils.Editor
         private readonly Module _legacy = new Module { Title = "Legacy Plugin Metadata" };
         private readonly Module _iap = new Module { Title = "Unused IAP Buttons" };
         private readonly Module _findings = new Module { Title = "Problems Unity Reported", CleanText = "None captured" };
+        private readonly Module _code = new Module { Title = "Obsolete API Usage in Code" };
 
         private VisualElement _suggestionsBox;
         private bool _showFindingsFixResult;
@@ -175,6 +177,21 @@ namespace Wagenheimer.UnityUtils.Editor
                     bar.Add(UnityUtilsUIStyle.CreateButton("Advanced: Resave Entire Project", "btn-danger", ConfirmAndModernizeProject));
                 }));
 
+            AddSection(scroll, "Source Code");
+            scroll.Add(BuildCard(_code,
+                "Rewrites code that triggers compiler warnings: obsolete FindObjectOfType / FindObjectsOfType calls and DOTween fields that Unity cannot serialize ([System.NonSerialized]). Only the folder below is touched.",
+                bar =>
+                {
+                    var folder = new TextField("Folder") { value = CodeModernizer.ScopeFolder };
+                    folder.AddToClassList("cleanup-folder-field");
+                    folder.tooltip = "Only scripts under this folder are scanned and edited. Third-party code outside it is never touched.";
+                    folder.RegisterValueChangedCallback(evt => CodeModernizer.ScopeFolder = evt.newValue);
+                    bar.Add(folder);
+
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Scanning source code", CodeScanRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Rewrite Code", "btn-primary", ConfirmAndFixCode));
+                }));
+
             AddSection(scroll, "Purchasing");
             scroll.Add(BuildCard(_iap,
                 "Finds Codeless IAP buttons that have no events wired up.",
@@ -207,6 +224,8 @@ namespace Wagenheimer.UnityUtils.Editor
             Register(_anim, "Enable Exit Time on transitions", "Enabling Exit Time",
                 p => AnimFixRoutine(p, AnimatorTransitionCleaner.FixMode.EnableExitTime));
             Register(_legacy, "Upgrade legacy plugin metadata", "Upgrading plugin metadata", LegacyPluginFixRoutine);
+            _code.FixLabel = "Rewrite obsolete code (review the diff in version control)";
+            _code.FixAction = ConfirmAndFixCode;
 #if WAGENHEIMER_UNITYUTILS_IAP
             Register(_iap, "Remove unused IAP buttons", "Removing unused IAP buttons", IapFixRoutine);
 #endif
@@ -402,9 +421,9 @@ namespace Wagenheimer.UnityUtils.Editor
         private IEnumerator FullScanRoutine(CleanupProgress p)
         {
 #if WAGENHEIMER_UNITYUTILS_IAP
-            p.SetStageCount(7);
+            p.SetStageCount(8);
 #else
-            p.SetStageCount(6);
+            p.SetStageCount(7);
 #endif
             yield return AudioScanRoutine(p);
             if (p.CancelRequested) yield break;
@@ -419,6 +438,9 @@ namespace Wagenheimer.UnityUtils.Editor
             if (p.CancelRequested) yield break;
 
             yield return LegacyScanRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return CodeScanRoutine(p);
 #if WAGENHEIMER_UNITYUTILS_IAP
             if (p.CancelRequested) yield break;
 
@@ -581,9 +603,76 @@ namespace Wagenheimer.UnityUtils.Editor
         }
 #endif
 
+        private IEnumerator CodeScanRoutine(CleanupProgress p)
+        {
+            var scan = default(CodeModernizer.ScanResult);
+            yield return CodeModernizer.ScanRoutine(p, r => scan = r);
+            if (p.CancelRequested) yield break;
+
+            SetIssues(_code, scan.EditCount);
+
+            // Thousands of rows would make the list unusable; the full list is one Fix away anyway.
+            const int maxRows = 200;
+            var shown = scan.Items;
+            var truncated = shown != null && shown.Count > maxRows;
+            if (truncated)
+                shown = shown.GetRange(0, maxRows);
+
+            RenderScanResults(
+                _code,
+                issueCount: scan.EditCount,
+                successMsg: $"No obsolete API usage found under {CodeModernizer.ScopeFolder}.",
+                diagTitle: "Obsolete API Usage Found in Code",
+                diagDesc: $"Found {scan.EditCount} change(s) in {scan.AffectedFiles} script(s): obsolete FindObjectOfType / FindObjectsOfType calls and DOTween fields Unity cannot serialize (they get [System.NonSerialized], which matches what Unity already does)." +
+                          (truncated ? $" Showing the first {maxRows}." : string.Empty) +
+                          (scan.SkippedFiles > 0 ? $" {scan.SkippedFiles} file(s) were skipped (not valid UTF-8)." : string.Empty),
+                recDesc: "Recommendation: apply the rewrite, let Unity recompile, then review the diff in version control. Code inside UNITY_* conditional blocks is never changed.",
+                fixBtnText: "Rewrite Code",
+                fixRoutine: null,
+                fixTitle: null,
+                items: shown,
+                customFix: ConfirmAndFixCode);
+
+            SetStatus($"Code scan: {scan.EditCount} change(s) available in {scan.AffectedFiles} script(s) under {CodeModernizer.ScopeFolder}.");
+        }
+
         #endregion
 
         #region Fix tasks
+
+        private void ConfirmAndFixCode()
+        {
+            if (!EditorUtility.DisplayDialog("Rewrite Code",
+                    $"This rewrites scripts under '{CodeModernizer.ScopeFolder}': obsolete FindObjectOfType / FindObjectsOfType calls are " +
+                    "migrated and unserializable DOTween fields get [System.NonSerialized]. Code inside UNITY_* conditional " +
+                    "blocks is not changed.\n\nMake sure your work is committed first so you can review the diff. " +
+                    "Unity will recompile afterwards.",
+                    "Rewrite", "Cancel"))
+                return;
+
+            StartTask("Rewriting source code", CodeFixRoutine);
+        }
+
+        private IEnumerator CodeFixRoutine(CleanupProgress p)
+        {
+            var before = _code.Issues;
+            var res = default(CodeModernizer.CleanResult);
+            yield return CodeModernizer.FixRoutine(p, r => res = r);
+
+            SetIssues(_code, Math.Max(0, before - res.ChangesApplied));
+
+            RenderDiffCard(
+                _code,
+                title: "✓ Source Code Rewritten",
+                beforeCount: before > 0 ? before : res.ChangesApplied,
+                afterCount: Math.Max(0, before - res.ChangesApplied),
+                benefitDesc: $"Applied {res.ChangesApplied} change(s) in {res.FilesChanged} script(s)." +
+                             (res.FilesSkipped > 0 ? $" {res.FilesSkipped} file(s) were skipped (not valid UTF-8)." : string.Empty) +
+                             " Unity is recompiling; review the diff in version control.",
+                modifications: res.Modifications);
+
+            SetStatus($"Rewrote {res.ChangesApplied} change(s) in {res.FilesChanged} script(s).");
+        }
 
         private IEnumerator AudioFixRoutine(CleanupProgress p)
         {
@@ -1044,7 +1133,7 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (_healthLabel == null) return;
 
-            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _iap, _findings };
+            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _iap, _findings, _code };
             var scanned = 0;
             var withIssues = 0;
             var totalIssues = 0;
@@ -1094,6 +1183,10 @@ namespace Wagenheimer.UnityUtils.Editor
 
                     label = $"Re-save {fixable} asset(s) Unity complained about";
                     click = ConfirmAndFixFindings;
+                }
+                else if (module.FixAction != null)
+                {
+                    click = module.FixAction;
                 }
                 else if (routine == null)
                 {

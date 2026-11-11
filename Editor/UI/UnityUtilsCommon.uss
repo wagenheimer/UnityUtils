@@ -646,3 +646,8 @@
     flex-shrink: 1;
     flex-grow: 1;
 }
+
+.cleanup-folder-field {
+    min-width: 220px;
+    margin-right: 8px;
+}
