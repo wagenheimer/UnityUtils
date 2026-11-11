@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.23.1] - 2026-11-11
+
+### Fixed
+- TMP CanvasRenderer cleaner never removed anything; verify removals and saves
+
 ## [1.23.0] - 2026-11-01
 
 ## [1.22.0] - 2026-11-01
