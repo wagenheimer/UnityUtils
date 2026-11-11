@@ -290,7 +290,8 @@ namespace Wagenheimer.UnityUtils.Editor
                     fixedCount += RemoveIfUnused(button);
 
                 if (fixedCount > 0)
-                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
+                    if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                        return 0;
 
                 return fixedCount;
             }
@@ -328,8 +329,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 return 0;
             }
 
-            Object.DestroyImmediate(button, true);
-            return 1;
+            return CleanupAssetUtility.TryDestroyComponent(button) ? 1 : 0;
         }
 
         #endregion

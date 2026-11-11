@@ -300,7 +300,19 @@ namespace Wagenheimer.UnityUtils.Editor
                     fixedCount += RemoveIfRedundant(tmp.gameObject);
 
                 if (fixedCount > 0)
-                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
+                {
+                    if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                        return 0;
+
+                    // Verifica o que foi gravado: recarrega o asset e confirma que não sobrou nenhum.
+                    var remaining = CountInPrefab(prefabPath);
+                    if (remaining > 0)
+                    {
+                        Debug.LogWarning($"[TMPCanvasRendererCleaner] '{prefabPath}': {remaining} CanvasRenderer(s) " +
+                                         "ainda presentes depois de salvar (o prefab pode estar bloqueado ou somente leitura).");
+                        return fixedCount - remaining;
+                    }
+                }
 
                 return fixedCount;
             }
@@ -320,13 +332,23 @@ namespace Wagenheimer.UnityUtils.Editor
             // a world-space TextMeshPro component.
             if (RequiresCanvasRenderer(go)) return 0;
 
-            Object.DestroyImmediate(renderer, true);
-            return 1;
+            // Só conta como removido se o componente realmente sumiu (TryDestroyComponent verifica).
+            return CleanupAssetUtility.TryDestroyComponent(renderer) ? 1 : 0;
         }
 
         private static bool RequiresCanvasRenderer(GameObject go)
         {
-            return go.GetComponent<TextMeshProUGUI>() != null || go.GetComponent<Graphic>() != null;
+            // Atenção: TMPro.TextMeshPro (3D) herda de TMP_Text -> MaskableGraphic -> Graphic. Um simples
+            // GetComponent<Graphic>() enxergava o próprio TextMeshPro e nunca removia nada. Só conta como
+            // "precisa de CanvasRenderer" um Graphic que NÃO seja o TextMeshPro de mundo.
+            foreach (var graphic in go.GetComponents<Graphic>())
+            {
+                if (graphic == null) continue;          // script ausente
+                if (graphic is TextMeshPro) continue;   // texto de mundo: não usa Canvas
+                return true;                            // Image, RawImage, TextMeshProUGUI, Text...
+            }
+
+            return false;
         }
 
         #endregion

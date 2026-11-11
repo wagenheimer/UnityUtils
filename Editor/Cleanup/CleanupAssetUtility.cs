@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace Wagenheimer.UnityUtils.Editor
 {
@@ -111,18 +112,63 @@ namespace Wagenheimer.UnityUtils.Editor
             }
         }
 
+        /// <summary>
+        /// Saves edited prefab contents back to the asset. Returns true only when Unity reports the save
+        /// succeeded — callers must not count fixes as applied when this returns false.
+        /// </summary>
         public static bool TrySavePrefabContents(GameObject root, string prefabPath)
         {
             try
             {
-                PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
-                return true;
+                PrefabUtility.SaveAsPrefabAsset(root, prefabPath, out var success);
+                if (!success)
+                    Debug.LogWarning($"[Cleanup] Unity did not save prefab '{prefabPath}' (locked, read-only or invalid).");
+                return success;
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[Cleanup] Could not save prefab '{prefabPath}': {ex.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Destroys a component and verifies it is really gone. Returns false (and logs) when Unity refuses:
+        /// components inherited from a prefab cannot be destroyed on an instance or variant — the source
+        /// prefab asset is what must be fixed. Cleaners must only count a removal when this returns true.
+        /// </summary>
+        public static bool TryDestroyComponent(Component component)
+        {
+            if (component == null) return false;
+
+            var owner = component.gameObject;
+            var typeName = component.GetType().Name;
+
+            if (PrefabUtility.IsPartOfPrefabInstance(component) && !PrefabUtility.IsAddedComponentOverride(component))
+            {
+                Debug.LogWarning($"[Cleanup] {typeName} on '{owner.name}' comes from a prefab asset; " +
+                                 "skipped here (fix the source prefab instead).", owner);
+                return false;
+            }
+
+            try
+            {
+                Object.DestroyImmediate(component, true);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Cleanup] Could not remove {typeName} from '{owner.name}': {ex.Message}", owner);
+                return false;
+            }
+
+            // Unity's overloaded == treats a destroyed component as null.
+            if (component != null)
+            {
+                Debug.LogWarning($"[Cleanup] {typeName} on '{owner.name}' is still present after removal.", owner);
+                return false;
+            }
+
+            return true;
         }
 
         public static void PingAsset(string assetPath)

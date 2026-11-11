@@ -323,7 +323,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 var count = CleanGameObjectRecursive(root);
                 if (count > 0)
                 {
-                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
+                    if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                        return 0;
                 }
                 return count;
             }

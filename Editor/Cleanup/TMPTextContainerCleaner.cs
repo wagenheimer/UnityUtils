@@ -278,7 +278,8 @@ namespace Wagenheimer.UnityUtils.Editor
                     fixedCount += RemoveContainer(container);
 
                 if (fixedCount > 0)
-                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
+                    if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                        return 0;
 
                 return fixedCount;
             }
@@ -290,10 +291,7 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static int RemoveContainer(TextContainer container)
         {
-            if (container == null) return 0;
-
-            Object.DestroyImmediate(container, true);
-            return 1;
+            return CleanupAssetUtility.TryDestroyComponent(container) ? 1 : 0;
         }
 
         #endregion

@@ -327,8 +327,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 foreach (var listener in listeners)
                 {
                     if (listener == null) continue;
-                    Object.DestroyImmediate(listener, true);
-                    removedCount++;
+                    if (CleanupAssetUtility.TryDestroyComponent(listener))
+                        removedCount++;
                 }
                 return removedCount;
             }
@@ -353,8 +353,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 if (listener == null || listener == keeper)
                     continue;
 
-                Object.DestroyImmediate(listener, true);
-                removed++;
+                if (CleanupAssetUtility.TryDestroyComponent(listener))
+                    removed++;
             }
 
             return removed;
@@ -378,14 +378,12 @@ namespace Wagenheimer.UnityUtils.Editor
                     var count = 0;
                     foreach (var l in listeners)
                     {
-                        if (l != null)
-                        {
-                            Object.DestroyImmediate(l, true);
+                        if (l != null && CleanupAssetUtility.TryDestroyComponent(l))
                             count++;
-                        }
                     }
                     if (count > 0)
-                        CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
+                        if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                            return 0;
                     return count;
                 }
 
@@ -400,12 +398,13 @@ namespace Wagenheimer.UnityUtils.Editor
                     if (listener == null || listener == keeper)
                         continue;
 
-                    Object.DestroyImmediate(listener, true);
-                    removed++;
+                    if (CleanupAssetUtility.TryDestroyComponent(listener))
+                        removed++;
                 }
 
                 if (removed > 0)
-                    CleanupAssetUtility.TrySavePrefabContents(root, prefabPath);
+                    if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
+                        return 0;
 
                 return removed;
             }
