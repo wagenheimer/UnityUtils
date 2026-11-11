@@ -2,6 +2,14 @@ name: UnityUtils
 
 # Changelog
 
+## [1.23.2] - 2026-11-11
+
+### Added
+- declare scripting defines for the Build Pipeline 2.0 registry
+
+### Fixed
+- legacy plugin importer detection and upgrade; translate remaining UI text to English
+
 ## [1.23.1] - 2026-11-11
 
 ### Fixed
