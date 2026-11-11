@@ -75,172 +75,61 @@ namespace Wagenheimer.UnityUtils.Editor
 
         #region Scan & Clean Logic
 
+        /// <summary>
+        /// Synchronous scan for menu items and API callers (shows a modal progress bar with Cancel).
+        /// Prefer <see cref="ScanProjectRoutine"/> from UI code so the editor stays responsive.
+        /// </summary>
         public static ScanResult ScanProject()
         {
-            var scan = new ScanResult
-            {
-                Details = new List<string>(),
-                Items = new List<CleanupIssueItem>()
-            };
-
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return scan;
-
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            try
-            {
-                var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
-
-                for (int i = 0; i < scenePaths.Length; i++)
-                {
-                    var path = scenePaths[i];
-                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
-                        continue;
-
-                    var count = CountInCurrentScene();
-                    if (count > 0)
-                    {
-                        scan.RedundantRendererCount += count;
-                        scan.AffectedScenesCount++;
-                        scan.Details.Add($"[Scene] {path}: {count} redundant CanvasRenderer(s)");
-                        scan.Items.Add(new CleanupIssueItem
-                        {
-                            AssetPath = path,
-                            TargetName = scene.name,
-                            Description = $"{count} redundant CanvasRenderer(s) on world-space TextMeshPro",
-                            Category = "TMP CanvasRenderer",
-                            IsScene = true,
-                            IsPrefab = false,
-                            Count = count
-                        });
-                    }
-                }
-
-                var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-
-                for (int i = 0; i < prefabPaths.Length; i++)
-                {
-                    var path = prefabPaths[i];
-                    var count = CountInPrefab(path);
-                    if (count > 0)
-                    {
-                        scan.RedundantRendererCount += count;
-                        scan.AffectedPrefabsCount++;
-                        scan.Details.Add($"[Prefab] {path}: {count} redundant CanvasRenderer(s)");
-                        scan.Items.Add(new CleanupIssueItem
-                        {
-                            AssetPath = path,
-                            TargetName = System.IO.Path.GetFileNameWithoutExtension(path),
-                            Description = $"{count} redundant CanvasRenderer(s) on world-space TextMeshPro",
-                            Category = "TMP CanvasRenderer",
-                            IsScene = false,
-                            IsPrefab = true,
-                            Count = count
-                        });
-                    }
-                }
-            }
-            finally
-            {
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
-
+            var scan = default(ScanResult);
+            CleanupRunner.RunBlocking("Scanning redundant TMP CanvasRenderers", p => ScanProjectRoutine(p, r => scan = r));
             return scan;
         }
 
+        /// <summary>Time-sliced scan: run it with <see cref="CleanupRunner.Start"/>; yields after every asset.</summary>
+        public static System.Collections.IEnumerator ScanProjectRoutine(CleanupProgress progress, System.Action<ScanResult> done)
+        {
+            var sweep = new SweepScan();
+            yield return ProjectSweep.Scan(progress, "Scanning redundant TMP CanvasRenderers", sweep,
+                CountInCurrentScene, CountInPrefab,
+                "TMP CanvasRenderer", "redundant CanvasRenderer(s)",
+                count => $"{count} redundant CanvasRenderer(s) on world-space TextMeshPro");
+
+            done(new ScanResult
+            {
+                RedundantRendererCount = sweep.Total,
+                AffectedScenesCount = sweep.Scenes,
+                AffectedPrefabsCount = sweep.Prefabs,
+                Details = sweep.Details,
+                Items = sweep.Items
+            });
+        }
+
+        /// <summary>
+        /// Synchronous fix for menu items and API callers (shows a modal progress bar with Cancel).
+        /// Prefer <see cref="CleanAllRoutine"/> from UI code so the editor stays responsive.
+        /// </summary>
         public static CleanResult CleanAll()
         {
-            var result = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return result;
-
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-
-            try
-            {
-                var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
-
-                bool cancelled = false;
-
-                for (int i = 0; i < scenePaths.Length && !cancelled; i++)
-                {
-                    var path = scenePaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing redundant TMP CanvasRenderer",
-                            $"Scene: {path}", (float)i / (scenePaths.Length * 2)))
-                    {
-                        cancelled = true;
-                        break;
-                    }
-
-                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
-                        continue;
-
-                    var fixedInScene = FixInCurrentScene();
-                    if (fixedInScene > 0)
-                    {
-                        result.ObjectsFixed += fixedInScene;
-                        result.ScenesChanged++;
-                        result.Modifications.Add(new CleanupModificationRecord
-                        {
-                            AssetPath = path,
-                            ActionTaken = $"Removed {fixedInScene} redundant CanvasRenderer(s)",
-                            ItemsFixed = fixedInScene,
-                            IsScene = true,
-                            IsPrefab = false
-                        });
-                        EditorSceneManager.MarkSceneDirty(scene);
-                        EditorSceneManager.SaveScene(scene);
-                    }
-                }
-
-                var prefabPaths = cancelled
-                    ? System.Array.Empty<string>()
-                    : CleanupAssetUtility.GetProjectPrefabPaths();
-
-                for (int i = 0; i < prefabPaths.Length && !cancelled; i++)
-                {
-                    var path = prefabPaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing redundant TMP CanvasRenderer",
-                            $"Prefab: {path}", 0.5f + (float)i / (prefabPaths.Length * 2)))
-                    {
-                        cancelled = true;
-                        break;
-                    }
-
-                    // Inspect the prefab asset directly first. Loading every prefab's contents
-                    // runs ExecuteInEditMode Awake methods (and logs whatever they log), which
-                    // makes a no-op clean extremely noisy.
-                    if (CountInPrefab(path) == 0)
-                        continue;
-
-                    var fixedInPrefab = FixInPrefab(path);
-                    if (fixedInPrefab > 0)
-                    {
-                        result.ObjectsFixed += fixedInPrefab;
-                        result.PrefabsChanged++;
-                        result.Modifications.Add(new CleanupModificationRecord
-                        {
-                            AssetPath = path,
-                            ActionTaken = $"Removed {fixedInPrefab} redundant CanvasRenderer(s)",
-                            ItemsFixed = fixedInPrefab,
-                            IsScene = false,
-                            IsPrefab = true
-                        });
-                    }
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
-
+            var result = default(CleanResult);
+            CleanupRunner.RunBlocking("Removing redundant TMP CanvasRenderers", p => CleanAllRoutine(p, r => result = r));
             return result;
+        }
+
+        /// <summary>Time-sliced fix: run it with <see cref="CleanupRunner.Start"/>; yields after every asset.</summary>
+        public static System.Collections.IEnumerator CleanAllRoutine(CleanupProgress progress, System.Action<CleanResult> done)
+        {
+            var sweep = new SweepFix();
+            yield return ProjectSweep.Fix(progress, "Removing redundant TMP CanvasRenderers", sweep,
+                FixInCurrentScene, CountInPrefab, FixInPrefab, "redundant CanvasRenderer(s)");
+
+            done(new CleanResult
+            {
+                ObjectsFixed = sweep.Fixed,
+                ScenesChanged = sweep.Scenes,
+                PrefabsChanged = sweep.Prefabs,
+                Modifications = sweep.Modifications
+            });
         }
 
         private static int FixInCurrentScene()

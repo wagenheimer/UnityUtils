@@ -121,7 +121,16 @@ namespace Wagenheimer.UnityUtils.Editor
             public List<CleanupModificationRecord> Modifications;
         }
 
+        /// <summary>Synchronous scan for menu items and API callers (modal progress bar with Cancel).</summary>
         public static ScanResult ScanProject()
+        {
+            var scan = default(ScanResult);
+            CleanupRunner.RunBlocking("Scanning AudioListeners", p => ScanProjectRoutine(p, r => scan = r));
+            return scan;
+        }
+
+        /// <summary>Time-sliced scan: run it with <see cref="CleanupRunner.Start"/>; yields after every asset.</summary>
+        public static System.Collections.IEnumerator ScanProjectRoutine(CleanupProgress progress, System.Action<ScanResult> done)
         {
             var scan = new ScanResult
             {
@@ -129,22 +138,9 @@ namespace Wagenheimer.UnityUtils.Editor
                 Items = new List<CleanupIssueItem>()
             };
 
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return scan;
-
-            var preferredPrefabPath = GetPreferredPrefabPath();
-            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
-
-            // Scan Scenes
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            try
-            {
-                for (int i = 0; i < scenePaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Scanning AudioListeners",
+                (scenePath, scene) =>
                 {
-                    var scenePath = scenePaths[i];
-                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
-                        continue;
-
                     var listeners = scene.GetRootGameObjects()
                         .SelectMany(root => root.GetComponentsInChildren<AudioListener>(true))
                         .ToList();
@@ -155,7 +151,7 @@ namespace Wagenheimer.UnityUtils.Editor
                         scan.DuplicateCount += duplicates;
                         scan.AffectedScenesCount++;
                         scan.Details.Add($"[Scene] {scenePath}: {listeners.Count} AudioListeners found ({duplicates} duplicate(s))");
-                        
+
                         var gameObjectsSummary = string.Join(", ", listeners.Select(l => l != null && l.gameObject != null ? l.gameObject.name : "null"));
                         scan.Items.Add(new CleanupIssueItem
                         {
@@ -168,25 +164,17 @@ namespace Wagenheimer.UnityUtils.Editor
                             Count = duplicates
                         });
                     }
-                }
-            }
-            finally
-            {
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
 
-            // Scan Prefabs
-            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-            for (int i = 0; i < prefabPaths.Length; i++)
-            {
-                var prefabPath = prefabPaths[i];
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-                if (prefab == null) continue;
-
-                var listeners = prefab.GetComponentsInChildren<AudioListener>(true);
-                if (listeners.Length > 1)
+                    return false;
+                },
+                prefabPath =>
                 {
+                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                    if (prefab == null) return;
+
+                    var listeners = prefab.GetComponentsInChildren<AudioListener>(true);
+                    if (listeners.Length <= 1) return;
+
                     var duplicates = listeners.Length - 1;
                     scan.DuplicateCount += duplicates;
                     scan.AffectedPrefabsCount++;
@@ -203,48 +191,31 @@ namespace Wagenheimer.UnityUtils.Editor
                         IsPrefab = true,
                         Count = duplicates
                     });
-                }
-            }
+                },
+                saveScenes: false);
 
-            return scan;
+            done(scan);
         }
 
         public static CleanResult CleanAllScenes(bool removeAllNonPersistent, string bootstrapSceneNameToSkip = null)
         {
-            var result = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return result;
+            var result = default(CleanResult);
+            CleanupRunner.RunBlocking("Removing duplicate AudioListeners (scenes)",
+                p => CleanAllScenesRoutine(p, removeAllNonPersistent, bootstrapSceneNameToSkip, r => result = r));
+            return result;
+        }
 
+        public static System.Collections.IEnumerator CleanAllScenesRoutine(CleanupProgress progress,
+            bool removeAllNonPersistent, string bootstrapSceneNameToSkip, System.Action<CleanResult> done)
+        {
+            var result = new CleanResult { Modifications = new List<CleanupModificationRecord>() };
             var preferredPrefabPath = GetPreferredPrefabPath();
-            var setup = EditorSceneManager.GetSceneManagerSetup();
-            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
 
-            try
-            {
-                for (var i = 0; i < scenePaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Removing duplicate AudioListeners (scenes)",
+                (scenePath, scene) =>
                 {
-                    var scenePath = scenePaths[i];
-                    var sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
-
-                    if (!string.IsNullOrEmpty(bootstrapSceneNameToSkip) &&
-                        string.Equals(sceneName, bootstrapSceneNameToSkip, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing Duplicate Audio Listeners (Scenes)",
-                            scenePath, (float)i / scenePaths.Length))
-                        break;
-
-                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
-                        continue;
-
                     var removed = RemoveDuplicatesInScene(scene, preferredPrefabPath, removeAllNonPersistent);
-                    if (removed <= 0)
-                        continue;
+                    if (removed <= 0) return false;
 
                     result.DuplicatesRemoved += removed;
                     result.ScenesModified++;
@@ -256,41 +227,38 @@ namespace Wagenheimer.UnityUtils.Editor
                         IsScene = true,
                         IsPrefab = false
                     });
-                    EditorSceneManager.MarkSceneDirty(scene);
-                    EditorSceneManager.SaveScene(scene);
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                if (setup != null && setup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(setup);
-            }
+                    return true;
+                },
+                onPrefab: null,
+                saveScenes: true,
+                skipScene: scenePath =>
+                    !string.IsNullOrEmpty(bootstrapSceneNameToSkip) &&
+                    string.Equals(System.IO.Path.GetFileNameWithoutExtension(scenePath), bootstrapSceneNameToSkip,
+                        StringComparison.OrdinalIgnoreCase));
 
-            return result;
+            done(result);
         }
 
         public static CleanResult CleanAllPrefabs(bool removeAllNonPersistent)
         {
+            var result = default(CleanResult);
+            CleanupRunner.RunBlocking("Removing duplicate AudioListeners (prefabs)",
+                p => CleanAllPrefabsRoutine(p, removeAllNonPersistent, r => result = r));
+            return result;
+        }
+
+        public static System.Collections.IEnumerator CleanAllPrefabsRoutine(CleanupProgress progress,
+            bool removeAllNonPersistent, System.Action<CleanResult> done)
+        {
+            var result = new CleanResult { Modifications = new List<CleanupModificationRecord>() };
             var preferredPrefabPath = GetPreferredPrefabPath();
-            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-            var result = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
 
-            try
-            {
-                for (var i = 0; i < prefabPaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Removing duplicate AudioListeners (prefabs)",
+                onScene: null,
+                onPrefab: prefabPath =>
                 {
-                    var prefabPath = prefabPaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing Duplicate Audio Listeners (Prefabs)",
-                            prefabPath, (float)i / prefabPaths.Length))
-                        break;
-
                     var removed = RemoveDuplicatesInPrefab(prefabPath, preferredPrefabPath, removeAllNonPersistent);
-                    if (removed <= 0)
-                        continue;
+                    if (removed <= 0) return;
 
                     result.DuplicatesRemoved += removed;
                     result.PrefabsModified++;
@@ -302,14 +270,10 @@ namespace Wagenheimer.UnityUtils.Editor
                         IsScene = false,
                         IsPrefab = true
                     });
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-            }
+                },
+                saveScenes: false);
 
-            return result;
+            done(result);
         }
 
         public static int RemoveDuplicatesInScene(Scene scene, string preferredPrefabPath, bool removeAllNonPersistent)

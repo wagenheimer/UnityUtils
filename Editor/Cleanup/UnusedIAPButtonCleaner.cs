@@ -81,159 +81,61 @@ namespace Wagenheimer.UnityUtils.Editor
 
         #region Scan & Clean Logic
 
+        /// <summary>
+        /// Synchronous scan for menu items and API callers (shows a modal progress bar with Cancel).
+        /// Prefer <see cref="ScanProjectRoutine"/> from UI code so the editor stays responsive.
+        /// </summary>
         public static ScanResult ScanProject()
         {
-            var scan = new ScanResult
-            {
-                Details = new List<string>(),
-                Items = new List<CleanupIssueItem>()
-            };
-
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return scan;
-
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            try
-            {
-                var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
-
-                for (int i = 0; i < scenePaths.Length; i++)
-                {
-                    var path = scenePaths[i];
-                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
-                        continue;
-
-                    var count = CountUnusedInCurrentScene();
-                    if (count > 0)
-                    {
-                        scan.UnusedComponentCount += count;
-                        scan.AffectedScenesCount++;
-                        scan.Details.Add($"[Scene] {path}: {count} unused IAP component(s)");
-                        scan.Items.Add(new CleanupIssueItem
-                        {
-                            AssetPath = path,
-                            TargetName = scene.name,
-                            Description = $"{count} unused Codeless IAPButton component(s)",
-                            Category = "IAP",
-                            IsScene = true,
-                            IsPrefab = false,
-                            Count = count
-                        });
-                    }
-                }
-
-                var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-
-                for (int i = 0; i < prefabPaths.Length; i++)
-                {
-                    var path = prefabPaths[i];
-                    var count = CountUnusedInPrefab(path);
-                    if (count > 0)
-                    {
-                        scan.UnusedComponentCount += count;
-                        scan.AffectedPrefabsCount++;
-                        scan.Details.Add($"[Prefab] {path}: {count} unused IAP component(s)");
-                        scan.Items.Add(new CleanupIssueItem
-                        {
-                            AssetPath = path,
-                            TargetName = System.IO.Path.GetFileNameWithoutExtension(path),
-                            Description = $"{count} unused Codeless IAPButton component(s)",
-                            Category = "IAP",
-                            IsScene = false,
-                            IsPrefab = true,
-                            Count = count
-                        });
-                    }
-                }
-            }
-            finally
-            {
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
-
+            var scan = default(ScanResult);
+            CleanupRunner.RunBlocking("Scanning unused IAP buttons", p => ScanProjectRoutine(p, r => scan = r));
             return scan;
         }
 
+        /// <summary>Time-sliced scan: run it with <see cref="CleanupRunner.Start"/>; yields after every asset.</summary>
+        public static System.Collections.IEnumerator ScanProjectRoutine(CleanupProgress progress, System.Action<ScanResult> done)
+        {
+            var sweep = new SweepScan();
+            yield return ProjectSweep.Scan(progress, "Scanning unused IAP buttons", sweep,
+                CountUnusedInCurrentScene, CountUnusedInPrefab,
+                "IAP", "unused IAP component(s)",
+                count => $"{count} unused Codeless IAPButton component(s)");
+
+            done(new ScanResult
+            {
+                UnusedComponentCount = sweep.Total,
+                AffectedScenesCount = sweep.Scenes,
+                AffectedPrefabsCount = sweep.Prefabs,
+                Details = sweep.Details,
+                Items = sweep.Items
+            });
+        }
+
+        /// <summary>
+        /// Synchronous fix for menu items and API callers (shows a modal progress bar with Cancel).
+        /// Prefer <see cref="CleanAllRoutine"/> from UI code so the editor stays responsive.
+        /// </summary>
         public static CleanResult CleanAll()
         {
-            var result = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return result;
-
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-
-            try
-            {
-                var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
-
-                for (int i = 0; i < scenePaths.Length; i++)
-                {
-                    var path = scenePaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing unused IAP components",
-                            $"Scene: {path}", (float)i / (scenePaths.Length * 2)))
-                        break;
-
-                    if (!CleanupAssetUtility.TryOpenScene(path, out var scene))
-                        continue;
-
-                    var fixedInScene = FixInCurrentScene();
-                    if (fixedInScene > 0)
-                    {
-                        result.ObjectsFixed += fixedInScene;
-                        result.ScenesChanged++;
-                        result.Modifications.Add(new CleanupModificationRecord
-                        {
-                            AssetPath = path,
-                            ActionTaken = $"Removed {fixedInScene} unused IAPButton component(s)",
-                            ItemsFixed = fixedInScene,
-                            IsScene = true,
-                            IsPrefab = false
-                        });
-                        EditorSceneManager.MarkSceneDirty(scene);
-                        EditorSceneManager.SaveScene(scene);
-                    }
-                }
-
-                var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-
-                for (int i = 0; i < prefabPaths.Length; i++)
-                {
-                    var path = prefabPaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing unused IAP components",
-                            $"Prefab: {path}", 0.5f + (float)i / (prefabPaths.Length * 2)))
-                        break;
-
-                    if (CountUnusedInPrefab(path) == 0)
-                        continue;
-
-                    var fixedInPrefab = FixInPrefab(path);
-                    if (fixedInPrefab > 0)
-                    {
-                        result.ObjectsFixed += fixedInPrefab;
-                        result.PrefabsChanged++;
-                        result.Modifications.Add(new CleanupModificationRecord
-                        {
-                            AssetPath = path,
-                            ActionTaken = $"Removed {fixedInPrefab} unused IAPButton component(s)",
-                            ItemsFixed = fixedInPrefab,
-                            IsScene = false,
-                            IsPrefab = true
-                        });
-                    }
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
-
+            var result = default(CleanResult);
+            CleanupRunner.RunBlocking("Removing unused IAP buttons", p => CleanAllRoutine(p, r => result = r));
             return result;
+        }
+
+        /// <summary>Time-sliced fix: run it with <see cref="CleanupRunner.Start"/>; yields after every asset.</summary>
+        public static System.Collections.IEnumerator CleanAllRoutine(CleanupProgress progress, System.Action<CleanResult> done)
+        {
+            var sweep = new SweepFix();
+            yield return ProjectSweep.Fix(progress, "Removing unused IAP buttons", sweep,
+                FixInCurrentScene, CountUnusedInPrefab, FixInPrefab, "unused IAPButton component(s)");
+
+            done(new CleanResult
+            {
+                ObjectsFixed = sweep.Fixed,
+                ScenesChanged = sweep.Scenes,
+                PrefabsChanged = sweep.Prefabs,
+                Modifications = sweep.Modifications
+            });
         }
 
         private static int FixInCurrentScene()

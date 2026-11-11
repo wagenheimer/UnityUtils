@@ -149,61 +149,46 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static int ResaveScenes()
         {
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return 0;
+            var updated = 0;
+            CleanupRunner.RunBlocking("Resaving scenes", p => ResaveScenesRoutine(p, n => updated = n));
+            return updated;
+        }
 
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
+        /// <summary>Time-sliced scene resave: run it with <see cref="CleanupRunner.Start"/>.</summary>
+        public static System.Collections.IEnumerator ResaveScenesRoutine(CleanupProgress progress, Action<int> done)
+        {
             var updated = 0;
 
-            try
-            {
-                for (int i = 0; i < scenePaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Resaving scenes",
+                (path, scene) =>
                 {
-                    var scenePath = scenePaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Scenes", scenePath, (float)i / scenePaths.Length))
-                        break;
+                    updated++;
+                    return true; // Marking dirty and saving is what upgrades the serialization.
+                },
+                onPrefab: null,
+                saveScenes: true);
 
-                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
-                        continue;
-
-                    try
-                    {
-                        EditorSceneManager.MarkSceneDirty(scene);
-                        EditorSceneManager.SaveScene(scene);
-                        updated++;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[LegacyComponentCleaner] Could not resave scene '{scenePath}': {ex.Message}");
-                    }
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
-
-            return updated;
+            done(updated);
         }
 
         public static int ResavePrefabs()
         {
-            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
+            var updated = 0;
+            CleanupRunner.RunBlocking("Resaving prefabs", p => ResavePrefabsRoutine(p, n => updated = n));
+            return updated;
+        }
+
+        /// <summary>Time-sliced prefab resave: run it with <see cref="CleanupRunner.Start"/>.</summary>
+        public static System.Collections.IEnumerator ResavePrefabsRoutine(CleanupProgress progress, Action<int> done)
+        {
             var updated = 0;
 
-            try
-            {
-                for (int i = 0; i < prefabPaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Resaving prefabs",
+                onScene: null,
+                onPrefab: prefabPath =>
                 {
-                    var prefabPath = prefabPaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Prefabs", prefabPath, (float)i / prefabPaths.Length))
-                        break;
-
                     var root = CleanupAssetUtility.LoadPrefabContents(prefabPath);
-                    if (root == null) continue;
+                    if (root == null) return;
 
                     try
                     {
@@ -214,14 +199,10 @@ namespace Wagenheimer.UnityUtils.Editor
                     {
                         PrefabUtility.UnloadPrefabContents(root);
                     }
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-            }
+                },
+                saveScenes: false);
 
-            return updated;
+            done(updated);
         }
 
         /// <summary>
@@ -231,59 +212,71 @@ namespace Wagenheimer.UnityUtils.Editor
         /// </summary>
         public static CleanResult ResaveLegacyPluginImportersWithResult()
         {
-            var res = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
+            var res = default(CleanResult);
+            CleanupRunner.RunBlocking("Resaving legacy plugin importers",
+                p => ResaveLegacyPluginImportersRoutine(p, r => res = r));
+            return res;
+        }
+
+        /// <summary>Time-sliced plugin importer upgrade: run it with <see cref="CleanupRunner.Start"/>.</summary>
+        public static System.Collections.IEnumerator ResaveLegacyPluginImportersRoutine(CleanupProgress progress,
+            Action<CleanResult> done)
+        {
+            var res = new CleanResult { Modifications = new List<CleanupModificationRecord>() };
+
+            progress.SetDetail("Looking for legacy plugin importers...");
+            yield return null;
 
             var legacyPluginPaths = FindLegacyPluginImporterPaths();
+            progress.NextStage("Resaving legacy plugin importers", legacyPluginPaths.Length);
+
             var updated = 0;
-
-            try
+            foreach (var assetPath in legacyPluginPaths)
             {
-                for (int i = 0; i < legacyPluginPaths.Length; i++)
-                {
-                    var assetPath = legacyPluginPaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Resaving Legacy Plugin Importers",
-                            assetPath, (float)i / legacyPluginPaths.Length))
-                        break;
+                if (progress.CancelRequested) break;
 
-                    var importer = AssetImporter.GetAtPath(assetPath) as PluginImporter;
-                    if (importer == null) continue;
+                progress.Advance(assetPath);
 
-                    try
-                    {
-                        // Count a plugin as upgraded only when its .meta really changed (verified on disk).
-                        if (!TryUpgradePluginImporter(importer, assetPath))
-                        {
-                            Debug.LogWarning($"[LegacyComponentCleaner] '{assetPath}' is still on a legacy PluginImporter " +
-                                             "version after re-saving. Check that the file is writable (version control lock?).");
-                            continue;
-                        }
+                if (TryUpgradeAndRecord(assetPath, res))
+                    updated++;
 
-                        updated++;
-                        res.Modifications.Add(new CleanupModificationRecord
-                        {
-                            AssetPath = assetPath,
-                            ActionTaken = "Upgraded PluginImporter serialization to version 2",
-                            ItemsFixed = 1,
-                            IsScene = false,
-                            IsPrefab = false
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[LegacyComponentCleaner] Could not resave plugin importer '{assetPath}': {ex.Message}");
-                    }
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
+                yield return null;
             }
 
             res.PluginsUpdated = updated;
-            return res;
+            done(res);
+        }
+
+        private static bool TryUpgradeAndRecord(string assetPath, CleanResult res)
+        {
+            var importer = AssetImporter.GetAtPath(assetPath) as PluginImporter;
+            if (importer == null) return false;
+
+            try
+            {
+                // Count a plugin as upgraded only when its .meta really changed (verified on disk).
+                if (!TryUpgradePluginImporter(importer, assetPath))
+                {
+                    Debug.LogWarning($"[LegacyComponentCleaner] '{assetPath}' is still on a legacy PluginImporter " +
+                                     "version after re-saving. Check that the file is writable (version control lock?).");
+                    return false;
+                }
+
+                res.Modifications.Add(new CleanupModificationRecord
+                {
+                    AssetPath = assetPath,
+                    ActionTaken = "Upgraded PluginImporter serialization to version 2",
+                    ItemsFixed = 1,
+                    IsScene = false,
+                    IsPrefab = false
+                });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[LegacyComponentCleaner] Could not resave plugin importer '{assetPath}': {ex.Message}");
+                return false;
+            }
         }
 
         public static int ResaveLegacyPluginImporters()
@@ -398,6 +391,14 @@ namespace Wagenheimer.UnityUtils.Editor
 
         public static void ForceReserializeProject()
         {
+            CleanupRunner.RunBlocking("Reserializing assets", ForceReserializeProjectRoutine);
+        }
+
+        /// <summary>Time-sliced reserialize (small batches): run it with <see cref="CleanupRunner.Start"/>.</summary>
+        public static System.Collections.IEnumerator ForceReserializeProjectRoutine(CleanupProgress progress)
+        {
+            const int batchSize = 25;
+
             var allAssets = CleanupAssetUtility.GetProjectScenePaths()
                 .Concat(CleanupAssetUtility.GetProjectPrefabPaths())
                 .Concat(CleanupAssetUtility.GetProjectScriptableObjectPaths())
@@ -405,11 +406,50 @@ namespace Wagenheimer.UnityUtils.Editor
                 .ToArray();
 
             if (allAssets.Length == 0)
-                return;
+                yield break;
 
-            AssetDatabase.ForceReserializeAssets(allAssets);
+            progress.NextStage("Reserializing assets", allAssets.Length);
+
+            for (var i = 0; i < allAssets.Length; i += batchSize)
+            {
+                if (progress.CancelRequested) break;
+
+                var batch = allAssets.Skip(i).Take(batchSize).ToArray();
+                progress.AdvanceBy(batch.Length, batch[0]);
+                AssetDatabase.ForceReserializeAssets(batch);
+                yield return null;
+            }
+
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+        }
+
+        /// <summary>
+        /// The whole "Full Project Modernize" operation as one cancellable task: scenes, prefabs, plugin
+        /// importers, then a final reserialize. The result carries the per-step counts.
+        /// </summary>
+        public static System.Collections.IEnumerator ModernizeProjectRoutine(CleanupProgress progress,
+            Action<CleanResult> done)
+        {
+            progress.SetStageCount(4);
+
+            var result = new CleanResult { Modifications = new List<CleanupModificationRecord>() };
+
+            yield return ResaveScenesRoutine(progress, n => result.ScenesUpdated = n);
+            if (progress.CancelRequested) { done(result); yield break; }
+
+            yield return ResavePrefabsRoutine(progress, n => result.PrefabsUpdated = n);
+            if (progress.CancelRequested) { done(result); yield break; }
+
+            yield return ResaveLegacyPluginImportersRoutine(progress, r =>
+            {
+                result.PluginsUpdated = r.PluginsUpdated;
+                result.Modifications.AddRange(r.Modifications ?? new List<CleanupModificationRecord>());
+            });
+            if (progress.CancelRequested) { done(result); yield break; }
+
+            yield return ForceReserializeProjectRoutine(progress);
+            done(result);
         }
 
         #endregion

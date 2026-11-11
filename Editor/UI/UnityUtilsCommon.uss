@@ -521,3 +521,89 @@
     color: #A7F3D0;
     margin-bottom: 2px;
 }
+
+/* ---------------- CLEANUP TAB: ACTION BAR, PROGRESS, SECTIONS ---------------- */
+.cleanup-topbar {
+    flex-direction: column;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--border-color);
+}
+
+.cleanup-action-row {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.cleanup-action-row > .btn {
+    margin-right: 8px;
+}
+
+.cleanup-health {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.section-title {
+    font-size: 11px;
+    -unity-font-style: bold;
+    color: var(--text-muted);
+    margin-top: 10px;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.progress-panel {
+    flex-direction: column;
+    background-color: var(--bg-card);
+    border-color: var(--accent-primary);
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 8px;
+}
+
+.progress-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.progress-title {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: var(--text-primary);
+}
+
+.progress-stage {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    margin-bottom: 4px;
+    white-space: normal;
+}
+
+.progress-bar {
+    min-height: 18px;
+}
+
+.progress-detail {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-time {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}

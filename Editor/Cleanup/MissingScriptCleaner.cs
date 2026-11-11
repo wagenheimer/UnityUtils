@@ -101,7 +101,16 @@ namespace Wagenheimer.UnityUtils.Editor
 
         #region Core Scan & Clean Logic
 
+        /// <summary>Synchronous scan for menu items and API callers (modal progress bar with Cancel).</summary>
         public static ScanResult ScanProject()
+        {
+            var scan = default(ScanResult);
+            CleanupRunner.RunBlocking("Scanning missing scripts", p => ScanProjectRoutine(p, r => scan = r));
+            return scan;
+        }
+
+        /// <summary>Time-sliced scan: run it with <see cref="CleanupRunner.Start"/>; yields after every asset.</summary>
+        public static System.Collections.IEnumerator ScanProjectRoutine(CleanupProgress progress, System.Action<ScanResult> done)
         {
             var scan = new ScanResult
             {
@@ -109,20 +118,9 @@ namespace Wagenheimer.UnityUtils.Editor
                 Items = new List<CleanupIssueItem>()
             };
 
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return scan;
-
-            var originalSetup = EditorSceneManager.GetSceneManagerSetup();
-            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
-
-            try
-            {
-                for (int i = 0; i < scenePaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Scanning missing scripts",
+                (scenePath, scene) =>
                 {
-                    var scenePath = scenePaths[i];
-                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
-                        continue;
-
                     var affectedObjects = new List<string>();
                     var count = FindMissingInScene(scene, affectedObjects);
                     if (count > 0)
@@ -130,87 +128,64 @@ namespace Wagenheimer.UnityUtils.Editor
                         scan.MissingScriptCount += count;
                         scan.AffectedScenesCount++;
                         scan.Details.Add($"[Scene] {scenePath}: {count} missing script(s)");
-
-                        var objectsSummary = string.Join(", ", affectedObjects.Distinct());
                         scan.Items.Add(new CleanupIssueItem
                         {
                             AssetPath = scenePath,
                             TargetName = scene.name,
-                            Description = $"{count} missing script component(s) on: {objectsSummary}",
+                            Description = $"{count} missing script component(s) on: {string.Join(", ", affectedObjects.Distinct())}",
                             Category = "MissingScript",
                             IsScene = true,
                             IsPrefab = false,
                             Count = count
                         });
                     }
-                }
-            }
-            finally
-            {
-                if (originalSetup != null && originalSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSetup);
-            }
 
-            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-            for (int i = 0; i < prefabPaths.Length; i++)
-            {
-                var prefabPath = prefabPaths[i];
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-                if (prefab == null) continue;
-
-                var affectedObjects = new List<string>();
-                var count = FindMissingInHierarchy(prefab, affectedObjects);
-                if (count > 0)
+                    return false;
+                },
+                prefabPath =>
                 {
+                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                    if (prefab == null) return;
+
+                    var affectedObjects = new List<string>();
+                    var count = FindMissingInHierarchy(prefab, affectedObjects);
+                    if (count <= 0) return;
+
                     scan.MissingScriptCount += count;
                     scan.AffectedPrefabsCount++;
                     scan.Details.Add($"[Prefab] {prefabPath}: {count} missing script(s)");
-
-                    var objectsSummary = string.Join(", ", affectedObjects.Distinct());
                     scan.Items.Add(new CleanupIssueItem
                     {
                         AssetPath = prefabPath,
                         TargetName = prefab.name,
-                        Description = $"{count} missing script component(s) on: {objectsSummary}",
+                        Description = $"{count} missing script component(s) on: {string.Join(", ", affectedObjects.Distinct())}",
                         Category = "MissingScript",
                         IsScene = false,
                         IsPrefab = true,
                         Count = count
                     });
-                }
-            }
+                },
+                saveScenes: false);
 
-            return scan;
+            done(scan);
         }
 
         public static CleanResult CleanAllScenes()
         {
-            var result = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
-            if (!CleanupAssetUtility.SaveCurrentScenesIfNeeded())
-                return result;
+            var result = default(CleanResult);
+            CleanupRunner.RunBlocking("Removing missing scripts (scenes)", p => CleanAllScenesRoutine(p, r => result = r));
+            return result;
+        }
 
-            var setup = EditorSceneManager.GetSceneManagerSetup();
-            var scenePaths = CleanupAssetUtility.GetProjectScenePaths();
+        public static System.Collections.IEnumerator CleanAllScenesRoutine(CleanupProgress progress, System.Action<CleanResult> done)
+        {
+            var result = new CleanResult { Modifications = new List<CleanupModificationRecord>() };
 
-            try
-            {
-                for (var i = 0; i < scenePaths.Length; i++)
+            yield return ProjectSweep.Run(progress, "Removing missing scripts (scenes)",
+                (scenePath, scene) =>
                 {
-                    var scenePath = scenePaths[i];
-
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing Missing Scripts (Scenes)",
-                            scenePath, (float)i / scenePaths.Length))
-                        break;
-
-                    if (!CleanupAssetUtility.TryOpenScene(scenePath, out var scene))
-                        continue;
-
                     var removed = CleanScene(scene);
-                    if (removed <= 0)
-                        continue;
+                    if (removed <= 0) return false;
 
                     result.MissingScriptsRemoved += removed;
                     result.ScenesModified++;
@@ -222,40 +197,31 @@ namespace Wagenheimer.UnityUtils.Editor
                         IsScene = true,
                         IsPrefab = false
                     });
-                    EditorSceneManager.MarkSceneDirty(scene);
-                    EditorSceneManager.SaveScene(scene);
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-                if (setup != null && setup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(setup);
-            }
+                    return true;
+                },
+                onPrefab: null,
+                saveScenes: true);
 
-            return result;
+            done(result);
         }
 
         public static CleanResult CleanAllPrefabs()
         {
-            var prefabPaths = CleanupAssetUtility.GetProjectPrefabPaths();
-            var result = new CleanResult
-            {
-                Modifications = new List<CleanupModificationRecord>()
-            };
+            var result = default(CleanResult);
+            CleanupRunner.RunBlocking("Removing missing scripts (prefabs)", p => CleanAllPrefabsRoutine(p, r => result = r));
+            return result;
+        }
 
-            try
-            {
-                for (var i = 0; i < prefabPaths.Length; i++)
+        public static System.Collections.IEnumerator CleanAllPrefabsRoutine(CleanupProgress progress, System.Action<CleanResult> done)
+        {
+            var result = new CleanResult { Modifications = new List<CleanupModificationRecord>() };
+
+            yield return ProjectSweep.Run(progress, "Removing missing scripts (prefabs)",
+                onScene: null,
+                onPrefab: prefabPath =>
                 {
-                    var prefabPath = prefabPaths[i];
-                    if (EditorUtility.DisplayCancelableProgressBar("Removing Missing Scripts (Prefabs)",
-                            prefabPath, (float)i / prefabPaths.Length))
-                        break;
-
                     var removed = CleanPrefab(prefabPath);
-                    if (removed <= 0)
-                        continue;
+                    if (removed <= 0) return;
 
                     result.MissingScriptsRemoved += removed;
                     result.PrefabsModified++;
@@ -267,14 +233,10 @@ namespace Wagenheimer.UnityUtils.Editor
                         IsScene = false,
                         IsPrefab = true
                     });
-                }
-            }
-            finally
-            {
-                EditorUtility.ClearProgressBar();
-            }
+                },
+                saveScenes: false);
 
-            return result;
+            done(result);
         }
 
         private static int FindMissingInScene(Scene scene, List<string> affectedObjects)
