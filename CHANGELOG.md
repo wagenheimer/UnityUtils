@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.25.0] - 2026-11-11
+
+### Added
+- capture console warnings as findings with automatic fixes; skip sample folders by default
+
 ## [1.24.0] - 2026-11-11
 
 ### Added
