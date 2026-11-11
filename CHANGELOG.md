@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.24.0] - 2026-11-11
+
+### Added
+- non-blocking cleanup tasks with live progress; reorganized Project Cleanup tab
+
 ## [1.23.2] - 2026-11-11
 
 ### Added
