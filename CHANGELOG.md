@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.26.0] - 2026-11-11
+
+### Added
+- Code Modernizer - rewrite obsolete Find* calls and unserializable DOTween fields
+
 ## [1.25.0] - 2026-11-11
 
 ### Added
