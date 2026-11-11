@@ -607,3 +607,42 @@
     color: var(--text-secondary);
     margin-top: 2px;
 }
+
+/* ---------------- CLEANUP TAB: OPTIONS AND SUGGESTIONS ---------------- */
+.cleanup-option {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.cleanup-suggestions {
+    flex-direction: column;
+    background-color: var(--bg-secondary);
+    border-color: var(--color-warning);
+    border-width: 1px;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px;
+}
+
+.suggestion-heading {
+    font-size: 11px;
+    -unity-font-style: bold;
+    color: #FCD34D;
+    margin-bottom: 4px;
+}
+
+.suggestion-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+}
+
+.suggestion-text {
+    font-size: 11px;
+    color: var(--text-primary);
+    white-space: normal;
+    flex-shrink: 1;
+    flex-grow: 1;
+}

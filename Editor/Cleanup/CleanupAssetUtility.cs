@@ -37,11 +37,46 @@ namespace Wagenheimer.UnityUtils.Editor
             return FindProjectAssets("t:ScriptableObject");
         }
 
+        private const string IncludeSamplesPreference = "WagenheimerUnityUtils.Cleanup.IncludeSamples";
+
+        // Folders that hold example content shipped with third-party assets. Scanning them mostly produces
+        // console noise ("outdated serialization", "GUI Layer no longer available") about files the project
+        // never ships, so they are skipped unless the user opts in.
+        private static readonly string[] SampleFolderNames =
+        {
+            "examples", "example", "examplescenes", "samples", "sample", "demo", "demos", "devtools", "documentation"
+        };
+
+        /// <summary>When false (default), scenes, prefabs and assets inside sample/demo folders are skipped.</summary>
+        public static bool IncludeSamples
+        {
+            get => EditorPrefs.GetBool(IncludeSamplesPreference, false);
+            set => EditorPrefs.SetBool(IncludeSamplesPreference, value);
+        }
+
+        /// <summary>True when any folder in the path is named like a sample or demo folder.</summary>
+        public static bool IsSampleOrDemoPath(string assetPath)
+        {
+            if (string.IsNullOrEmpty(assetPath)) return false;
+
+            var parts = assetPath.Split('/');
+            for (var i = 0; i < parts.Length - 1; i++)
+            {
+                if (Array.IndexOf(SampleFolderNames, parts[i].ToLowerInvariant()) >= 0)
+                    return true;
+            }
+
+            return false;
+        }
+
         private static string[] FindProjectAssets(string filter)
         {
+            var includeSamples = IncludeSamples;
+
             return AssetDatabase.FindAssets(filter, new[] { ProjectAssetsRoot })
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .Where(IsEditableProjectAsset)
+                .Where(path => includeSamples || !IsSampleOrDemoPath(path))
                 .Distinct()
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray();

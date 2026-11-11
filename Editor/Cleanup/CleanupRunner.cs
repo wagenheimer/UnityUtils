@@ -173,6 +173,11 @@ namespace Wagenheimer.UnityUtils.Editor
         private static Action<CleanupProgress> _onFinished;
         private static int _backgroundTaskId = -1;
 
+        private static CleanupProgress _active;
+
+        /// <summary>What the running task (async or blocking) is processing right now; used to attribute console messages.</summary>
+        internal static string ActiveDetail => _active != null ? _active.Detail : string.Empty;
+
         /// <summary>True while an asynchronous task is running. Only one task runs at a time.</summary>
         public static bool IsBusy => _routine != null;
 
@@ -199,6 +204,8 @@ namespace Wagenheimer.UnityUtils.Editor
             }
 
             _progress = new CleanupProgress(title);
+            _active = _progress;
+            ConsoleFindings.BeginCapture();
             _routine = new NestedRoutine(factory(_progress));
             _onFinished = onFinished;
 
@@ -226,6 +233,9 @@ namespace Wagenheimer.UnityUtils.Editor
             };
 
             progress.Changed += show;
+            var previousActive = _active;
+            _active = progress;
+            ConsoleFindings.BeginCapture();
             var routine = new NestedRoutine(factory(progress));
 
             try
@@ -238,6 +248,8 @@ namespace Wagenheimer.UnityUtils.Editor
             {
                 progress.Changed -= show;
                 Dispose(routine);
+                _active = previousActive;
+                ConsoleFindings.EndCapture();
                 EditorUtility.ClearProgressBar();
                 progress.IsFinished = true;
                 progress.WasCancelled = progress.CancelRequested;
@@ -355,6 +367,8 @@ namespace Wagenheimer.UnityUtils.Editor
             _routine = null;
             _onFinished = null;
             _progress = null;
+            _active = null;
+            ConsoleFindings.EndCapture();
 
             progress.Changed -= ReportBackgroundTask;
             progress.IsFinished = true;

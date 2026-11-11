@@ -24,6 +24,12 @@ namespace Wagenheimer.UnityUtils.Editor
             public Label Badge;
             public VisualElement Results;
             public int Issues = -1; // -1 = not scanned yet
+            public string CleanText = "✓ Clean";
+
+            // The recommended fix, used by the suggestions list at the top of the tab.
+            public string FixLabel;
+            public string FixTitle;
+            public Func<CleanupProgress, IEnumerator> FixRoutine;
         }
 
         private readonly Module _audio = new Module { Title = "Audio Listeners" };
@@ -32,6 +38,10 @@ namespace Wagenheimer.UnityUtils.Editor
         private readonly Module _anim = new Module { Title = "Animator Transitions" };
         private readonly Module _legacy = new Module { Title = "Legacy Plugin Metadata" };
         private readonly Module _iap = new Module { Title = "Unused IAP Buttons" };
+        private readonly Module _findings = new Module { Title = "Problems Unity Reported", CleanText = "None captured" };
+
+        private VisualElement _suggestionsBox;
+        private bool _showFindingsFixResult;
 
         private VisualElement _actionRow;
         private VisualElement _content;
@@ -53,6 +63,10 @@ namespace Wagenheimer.UnityUtils.Editor
             BuildUI();
 
             RegisterCallback<DetachFromPanelEvent>(_ => UnbindProgress());
+
+            // Findings captured earlier (for example by a menu-item scan) are shown right away.
+            if (ConsoleFindings.All.Count > 0)
+                RefreshFindings();
 
             // A task started before this window was (re)opened keeps showing its progress here.
             if (CleanupRunner.IsBusy)
@@ -79,6 +93,20 @@ namespace Wagenheimer.UnityUtils.Editor
             _actionRow.Add(_healthLabel);
             topBar.Add(_actionRow);
 
+            var includeSamples = new Toggle("Include third-party samples and demos (slower, noisier)")
+            {
+                value = CleanupAssetUtility.IncludeSamples,
+                tooltip = "Off by default: folders named Examples, Samples, Demo, etc. are skipped, because opening old sample scenes floods the console with warnings."
+            };
+            includeSamples.AddToClassList("cleanup-option");
+            includeSamples.RegisterValueChangedCallback(evt => CleanupAssetUtility.IncludeSamples = evt.newValue);
+            topBar.Add(includeSamples);
+
+            _suggestionsBox = new VisualElement();
+            _suggestionsBox.AddToClassList("cleanup-suggestions");
+            _suggestionsBox.style.display = DisplayStyle.None;
+            topBar.Add(_suggestionsBox);
+
             // ---- 2. Progress panel (hidden until a task runs) ----
             BuildProgressPanel();
             topBar.Add(_progressPanel);
@@ -88,6 +116,19 @@ namespace Wagenheimer.UnityUtils.Editor
             var scroll = new ScrollView();
             scroll.style.flexGrow = 1;
             _content = scroll;
+
+            AddSection(scroll, "Problems Unity Reported");
+            scroll.Add(BuildCard(_findings,
+                "While scanning, the console fills with warnings about old assets. They are collected here, explained, and fixed by re-saving the affected files.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Re-save Affected Assets", "btn-primary", ConfirmAndFixFindings));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Clear List", "btn-secondary", () =>
+                    {
+                        ConsoleFindings.Clear();
+                        RefreshFindings();
+                    }));
+                }));
 
             AddSection(scroll, "Scenes & Prefabs");
             scroll.Add(BuildCard(_audio,
@@ -149,12 +190,33 @@ namespace Wagenheimer.UnityUtils.Editor
 #endif
                 }));
 
+            RegisterFixers();
             Add(scroll);
 
             // ---- 4. Status footer ----
             _statusLabel = new Label("Ready.");
             _statusLabel.AddToClassList("status-box");
             Add(_statusLabel);
+        }
+
+        private void RegisterFixers()
+        {
+            Register(_audio, "Remove duplicate AudioListeners", "Removing duplicate AudioListeners", AudioFixRoutine);
+            Register(_scripts, "Remove missing scripts", "Removing missing scripts", ScriptsFixRoutine);
+            Register(_tmp, "Fix TextMesh Pro redundancies", "Fixing TextMesh Pro redundancies", TmpFixAllRoutine);
+            Register(_anim, "Enable Exit Time on transitions", "Enabling Exit Time",
+                p => AnimFixRoutine(p, AnimatorTransitionCleaner.FixMode.EnableExitTime));
+            Register(_legacy, "Upgrade legacy plugin metadata", "Upgrading plugin metadata", LegacyPluginFixRoutine);
+#if WAGENHEIMER_UNITYUTILS_IAP
+            Register(_iap, "Remove unused IAP buttons", "Removing unused IAP buttons", IapFixRoutine);
+#endif
+        }
+
+        private static void Register(Module module, string label, string title, Func<CleanupProgress, IEnumerator> routine)
+        {
+            module.FixLabel = label;
+            module.FixTitle = title;
+            module.FixRoutine = routine;
         }
 
         private void BuildProgressPanel()
@@ -308,6 +370,12 @@ namespace Wagenheimer.UnityUtils.Editor
             UnbindProgress();
             _progressPanel.style.display = DisplayStyle.None;
             SetInteractive(true);
+
+            if (_showFindingsFixResult)
+                _showFindingsFixResult = false; // Keep the "re-saved" result card visible.
+            else
+                RefreshFindings();
+
             RefreshHealth();
 
             if (progress.Failed)
@@ -768,6 +836,13 @@ namespace Wagenheimer.UnityUtils.Editor
                 stages += 1;
             }
 
+            if (_findings.Issues > 0 && FixableFindingAssets() > 0)
+            {
+                steps.Add(Step("Re-saving assets reported by Unity", FindingsFixRoutine));
+                summary.Add($"- {FixableFindingAssets()} asset(s) Unity reported as outdated (will be re-saved)");
+                stages += 2;
+            }
+
             if (_legacy.Issues > 0)
             {
                 steps.Add(Step("Upgrading plugin metadata", LegacyPluginFixRoutine));
@@ -823,6 +898,115 @@ namespace Wagenheimer.UnityUtils.Editor
 
         #endregion
 
+        #region Console findings
+
+        private static int FixableFindingAssets()
+        {
+            var paths = new HashSet<string>();
+            foreach (var finding in ConsoleFindings.All)
+            {
+                if (finding.FixableByResave && !string.IsNullOrEmpty(finding.AssetPath))
+                    paths.Add(finding.AssetPath);
+            }
+
+            return paths.Count;
+        }
+
+        private void RefreshFindings()
+        {
+            var all = ConsoleFindings.All;
+            SetIssues(_findings, all.Count);
+
+            if (all.Count == 0)
+            {
+                _findings.Results.Clear();
+                _findings.Results.style.display = DisplayStyle.None;
+                return;
+            }
+
+            var summary = new System.Text.StringBuilder();
+            foreach (var group in System.Linq.Enumerable.GroupBy(all, f => f.Kind))
+            {
+                summary.AppendLine($"• {System.Linq.Enumerable.Count(group)} x {ConsoleFindings.Title(group.Key)}");
+                summary.AppendLine($"   {ConsoleFindings.Explanation(group.Key)}");
+            }
+
+            var fixable = FixableFindingAssets();
+            var items = new List<CleanupIssueItem>();
+            foreach (var finding in all)
+            {
+                var path = finding.AssetPath ?? string.Empty;
+                items.Add(new CleanupIssueItem
+                {
+                    AssetPath = path,
+                    TargetName = path,
+                    Description = $"{ConsoleFindings.Title(finding.Kind)} - {finding.Message}",
+                    Category = "Console",
+                    IsScene = path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase),
+                    IsPrefab = path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase),
+                    Count = 1
+                });
+            }
+
+            RenderScanResults(
+                _findings,
+                issueCount: all.Count,
+                successMsg: "Nothing reported.",
+                diagTitle: "Problems Reported by Unity While Scanning",
+                diagDesc: summary.ToString().TrimEnd(),
+                recDesc: fixable > 0
+                    ? $"Recommendation: re-save the {fixable} affected asset(s). Only their serialization format changes; content stays the same."
+                    : "These need manual attention; there is nothing to re-save.",
+                fixBtnText: fixable > 0 ? "Re-save Affected Assets" : null,
+                fixRoutine: null,
+                fixTitle: null,
+                items: items,
+                customFix: fixable > 0 ? (Action)ConfirmAndFixFindings : null);
+        }
+
+        private void ConfirmAndFixFindings()
+        {
+            var fixable = FixableFindingAssets();
+            if (fixable == 0)
+            {
+                SetStatus("Nothing to re-save: no fixable problems were captured yet. Run a scan first.");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("Re-save Affected Assets",
+                    $"This opens and re-saves {fixable} asset(s) that Unity reported as outdated. " +
+                    "Only the file format is upgraded.\n\nMake sure your work is committed first. You can cancel while it runs.",
+                    "Re-save", "Cancel"))
+                return;
+
+            StartTask("Re-saving assets reported by Unity", FindingsFixRoutine);
+        }
+
+        private IEnumerator FindingsFixRoutine(CleanupProgress p)
+        {
+            var before = ConsoleFindings.All.Count;
+            var resaved = 0;
+
+            yield return ConsoleFindings.FixRoutine(p, n => resaved = n);
+
+            var remaining = ConsoleFindings.All.Count;
+            SetIssues(_findings, remaining);
+            _showFindingsFixResult = true;
+
+            RenderDiffCard(
+                _findings,
+                title: "✓ Affected Assets Re-saved",
+                beforeCount: before,
+                afterCount: remaining,
+                benefitDesc: $"Re-saved {resaved} asset(s). {remaining} problem(s) remain" +
+                             (remaining > 0 ? " (these need manual attention)." : "; Unity should no longer warn about them."),
+                modifications: null);
+
+            SetStatus($"Re-saved {resaved} asset(s) that Unity reported as outdated.");
+        }
+
+        #endregion
+
         #region Result rendering
 
         private void SetIssues(Module module, int issues)
@@ -838,7 +1022,7 @@ namespace Wagenheimer.UnityUtils.Editor
             }
             else if (issues == 0)
             {
-                text = "✓ Clean";
+                text = module.CleanText;
                 style = "badge-pass";
             }
             else
@@ -860,7 +1044,7 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (_healthLabel == null) return;
 
-            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _iap };
+            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _iap, _findings };
             var scanned = 0;
             var withIssues = 0;
             var totalIssues = 0;
@@ -877,11 +1061,65 @@ namespace Wagenheimer.UnityUtils.Editor
                 }
             }
 
+            RebuildSuggestions(modules);
+
             _healthLabel.text = scanned == 0
                 ? "Nothing scanned yet. Click 'Scan Everything' to check the whole project."
                 : withIssues == 0
                     ? $"{scanned} module(s) scanned: no issues found."
                     : $"{scanned} module(s) scanned: {totalIssues} issue(s) in {withIssues} module(s).";
+        }
+
+        // One line per module that has issues, with a button for its recommended fix.
+        private void RebuildSuggestions(Module[] modules)
+        {
+            if (_suggestionsBox == null) return;
+
+            _suggestionsBox.Clear();
+            var any = false;
+
+            foreach (var module in modules)
+            {
+                if (module.Issues <= 0) continue;
+
+                Func<CleanupProgress, IEnumerator> routine = module.FixRoutine;
+                string title = module.FixTitle;
+                string label = module.FixLabel;
+                Action click = null;
+
+                if (module == _findings)
+                {
+                    var fixable = FixableFindingAssets();
+                    if (fixable == 0) continue;
+
+                    label = $"Re-save {fixable} asset(s) Unity complained about";
+                    click = ConfirmAndFixFindings;
+                }
+                else if (routine == null)
+                {
+                    continue;
+                }
+
+                if (!any)
+                {
+                    var heading = new Label("Suggested next steps");
+                    heading.AddToClassList("suggestion-heading");
+                    _suggestionsBox.Add(heading);
+                    any = true;
+                }
+
+                var row = new VisualElement();
+                row.AddToClassList("suggestion-row");
+
+                var text = new Label($"{module.Title}: {module.Issues} issue(s)  -  {label}");
+                text.AddToClassList("suggestion-text");
+                row.Add(text);
+
+                row.Add(UnityUtilsUIStyle.CreateButton("Fix", "btn-primary", click ?? (() => StartTask(title, routine))));
+                _suggestionsBox.Add(row);
+            }
+
+            _suggestionsBox.style.display = any ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private static List<CleanupModificationRecord> Merge(List<CleanupModificationRecord> first, List<CleanupModificationRecord> second)
@@ -902,7 +1140,8 @@ namespace Wagenheimer.UnityUtils.Editor
             string fixBtnText,
             Func<CleanupProgress, IEnumerator> fixRoutine,
             string fixTitle,
-            List<CleanupIssueItem> items)
+            List<CleanupIssueItem> items,
+            Action customFix = null)
         {
             var panel = module.Results;
             panel.Clear();
@@ -933,12 +1172,13 @@ namespace Wagenheimer.UnityUtils.Editor
             solDesc.AddToClassList("solution-desc");
             solutionBox.Add(solDesc);
 
-            if (fixRoutine != null && !string.IsNullOrEmpty(fixBtnText))
+            if ((fixRoutine != null || customFix != null) && !string.IsNullOrEmpty(fixBtnText))
             {
                 var actionRow = new VisualElement();
                 actionRow.AddToClassList("solution-action-row");
 
-                var fixBtn = UnityUtilsUIStyle.CreateButton(fixBtnText, "btn-primary", () => StartTask(fixTitle, fixRoutine));
+                var fixBtn = UnityUtilsUIStyle.CreateButton(fixBtnText, "btn-primary",
+                    customFix ?? (() => StartTask(fixTitle, fixRoutine)));
                 fixBtn.style.alignSelf = Align.FlexStart;
                 actionRow.Add(fixBtn);
 
