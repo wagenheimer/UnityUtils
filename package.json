@@ -27,6 +27,16 @@
     "migration"
   ],
   "category": "Tools",
+  "wagenheimer": {
+    "defines": [
+      {
+        "symbol": "WAGENHEIMER_UNITYUTILS_IAP",
+        "description": "Enables the editor cleanup tools that understand Unity IAP buttons (UnusedIAPButtonCleaner). Automatic inside the UnityUtils editor assembly when com.unity.purchasing is installed.",
+        "scope": "assembly",
+        "autoFromPackage": "com.unity.purchasing"
+      }
+    ]
+  },
   "dependencies": {
     "com.unity.textmeshpro": "3.0.6"
   }
