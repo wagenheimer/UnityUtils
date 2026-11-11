@@ -224,7 +224,7 @@ namespace Wagenheimer.UnityUtils.Editor
 #if WAGENHEIMER_UNITYUTILS_IAP
                 RunIapScan();
 #endif
-                SetStatus("Auditoria completa do projeto concluída. Verifique os resultados e diagnósticos abaixo de cada módulo.");
+                SetStatus("Full project audit complete. Review the results and diagnostics below each module.");
             });
         }
 
@@ -237,11 +237,11 @@ namespace Wagenheimer.UnityUtils.Editor
             RenderScanResults(
                 _audioResultPanel,
                 issueCount: scan.DuplicateCount,
-                successMsg: "Nenhum AudioListener duplicado encontrado. Suas cenas e prefabs estão com áudio íntegro!",
-                diagTitle: "Múltiplos AudioListeners Detectados",
-                diagDesc: $"Foram encontrados {scan.DuplicateCount} AudioListener(s) duplicados em {scan.AffectedScenesCount} cena(s) e {scan.AffectedPrefabsCount} prefab(s). Ter mais de um listener em cena causa avisos recorrentes no console e divide a espacialização do áudio.",
-                recDesc: "Recomendação: Mantenha apenas o AudioListener principal (na cena de inicialização/câmera principal) e remova os duplicados nas demais cenas e prefabs.",
-                fixBtnText: "Corrigir Agora (Remover Duplicados)",
+                successMsg: "No duplicate AudioListeners found. Your scenes and prefabs have clean audio!",
+                diagTitle: "Multiple AudioListeners Detected",
+                diagDesc: $"Found {scan.DuplicateCount} duplicate AudioListener(s) in {scan.AffectedScenesCount} scene(s) and {scan.AffectedPrefabsCount} prefab(s). Having more than one listener in a scene causes recurring console warnings and splits audio spatialization.",
+                recDesc: "Recommendation: Keep only the main AudioListener (in the bootstrap scene / main camera) and remove the duplicates from the other scenes and prefabs.",
+                fixBtnText: "Fix Now (Remove Duplicates)",
                 fixAction: RunAudioFixAll,
                 items: scan.Items);
 
@@ -257,11 +257,11 @@ namespace Wagenheimer.UnityUtils.Editor
             RenderScanResults(
                 _scriptsResultPanel,
                 issueCount: scan.MissingScriptCount,
-                successMsg: "Nenhum script ausente encontrado. Todos os componentes MonoBehaviour estão íntegros!",
-                diagTitle: "Componentes com Script Ausente Detectados",
-                diagDesc: $"Foram encontrados {scan.MissingScriptCount} componente(s) MonoBehaviour com script ausente em {scan.AffectedScenesCount} cena(s) e {scan.AffectedPrefabsCount} prefab(s). Scripts ausentes quebram referências, degradam a performance de deserialização e geram warnings persistentes de 'The referenced script on this Behaviour is missing!'.",
-                recDesc: "Recomendação: Remova as entradas órfãs de MonoBehaviours corrompidos ou desinstalados para limpar a serialização.",
-                fixBtnText: "Remover Todos os Scripts Ausentes",
+                successMsg: "No missing scripts found. All MonoBehaviour components are intact!",
+                diagTitle: "Components With Missing Scripts Detected",
+                diagDesc: $"Found {scan.MissingScriptCount} MonoBehaviour component(s) with a missing script in {scan.AffectedScenesCount} scene(s) and {scan.AffectedPrefabsCount} prefab(s). Missing scripts break references, slow down deserialization and produce persistent 'The referenced script on this Behaviour is missing!' warnings.",
+                recDesc: "Recommendation: Remove the orphaned entries of corrupted or uninstalled MonoBehaviours to clean up serialization.",
+                fixBtnText: "Remove All Missing Scripts",
                 fixAction: RunScriptsFixAll,
                 items: scan.Items);
 
@@ -283,11 +283,11 @@ namespace Wagenheimer.UnityUtils.Editor
             RenderScanResults(
                 _tmpResultPanel,
                 issueCount: total,
-                successMsg: "Nenhuma redundância de TextMeshPro encontrada. Objetos 3D e UI de texto estão limpos!",
-                diagTitle: "Componentes Redundantes / Obsoletos de TextMeshPro",
-                diagDesc: $"Detectados {rScan.RedundantRendererCount} CanvasRenderer(s) desnecessários em textos de world-space e {cScan.ObsoleteContainerCount} TextContainer(s) legados. O TextMeshPro 3D não necessita de CanvasRenderer (gerando warnings em tempo de execução) e o TextContainer é obsoleto nas versões atuais.",
-                recDesc: "Recomendação: Remova com segurança os CanvasRenderers redundantes e TextContainers legados.",
-                fixBtnText: "Corrigir Todas as Redundâncias TMP",
+                successMsg: "No redundant TextMeshPro components found. Your 3D and UI texts are clean!",
+                diagTitle: "Redundant / Obsolete TextMeshPro Components",
+                diagDesc: $"Detected {rScan.RedundantRendererCount} unnecessary CanvasRenderer(s) on world-space texts and {cScan.ObsoleteContainerCount} legacy TextContainer(s). World-space TextMeshPro does not need a CanvasRenderer (it logs runtime warnings) and TextContainer is obsolete in current versions.",
+                recDesc: "Recommendation: Safely remove the redundant CanvasRenderers and legacy TextContainers.",
+                fixBtnText: "Fix All TMP Redundancies",
                 fixAction: () =>
                 {
                     RunTmpCanvasFix();
@@ -306,15 +306,15 @@ namespace Wagenheimer.UnityUtils.Editor
             RenderScanResults(
                 _animResultPanel,
                 issueCount: scan.InvalidTransitionCount,
-                successMsg: "Todas as transições de Animator Controllers estão íntegras e saudáveis!",
-                diagTitle: "Transições de Animator sem Condição nem Exit Time",
-                diagDesc: $"Foram encontradas {scan.InvalidTransitionCount} transição(ões) de Animator inválidas em {scan.AffectedControllersCount} controller(s). Transições AnyState sem Exit Time e sem condição nunca são disparadas pelo motor de animação e causam spam de warning no console.",
-                recDesc: "Recomendação: Ative 'Has Exit Time' com exitTime = 1.0 para transicionar normalmente após o término da animação.",
-                fixBtnText: "Habilitar Exit Time (Recomendado)",
+                successMsg: "All Animator Controller transitions are valid and healthy!",
+                diagTitle: "Animator Transitions Without Condition or Exit Time",
+                diagDesc: $"Found {scan.InvalidTransitionCount} invalid Animator transition(s) in {scan.AffectedControllersCount} controller(s). AnyState transitions with no Exit Time and no condition are never fired by the animation engine and spam the console with warnings.",
+                recDesc: "Recommendation: Enable 'Has Exit Time' with exitTime = 1.0 so the transition plays normally after the animation ends.",
+                fixBtnText: "Enable Exit Time (Recommended)",
                 fixAction: () => RunAnimFix(AnimatorTransitionCleaner.FixMode.EnableExitTime),
                 items: scan.Items);
 
-            SetStatus($"Animator scan: {scan.InvalidTransitionCount} transição(ões) inválidas em {scan.AffectedControllersCount} controller(s).");
+            SetStatus($"Animator scan: {scan.InvalidTransitionCount} invalid transition(s) in {scan.AffectedControllersCount} controller(s).");
         }
 
         private void RunLegacyScan()
@@ -325,10 +325,10 @@ namespace Wagenheimer.UnityUtils.Editor
             RenderScanResults(
                 _legacyResultPanel,
                 issueCount: scan.LegacyPluginCount,
-                successMsg: "Todos os metadados de plugins estão na versão 2 (modernos) e o projeto está atualizado!",
-                diagTitle: "Metadados de Plugins na Versão Legada (Versão 1)",
-                diagDesc: $"Foram encontrados {scan.LegacyPluginCount} arquivo(s) .meta de plugins legados onde PluginImporter está na versão 1. O Unity 6 exige versão 2 e alerta em cada compilação: 'contains a PluginImporter object at version 1, below the supported minimum (2)'.",
-                recDesc: "Recomendação: Re-salve os importadores dos plugins legados para elevar a serialização para a versão 2 sem alterar os binários.",
+                successMsg: "All plugin metadata is on version 2 (modern) and the project is up to date!",
+                diagTitle: "Plugin Metadata on Legacy Version (Version 1)",
+                diagDesc: $"Found {scan.LegacyPluginCount} legacy plugin .meta file(s) where PluginImporter is on version 1. Unity 6 requires version 2 and warns on every compile: 'contains a PluginImporter object at version 1, below the supported minimum (2)'.",
+                recDesc: "Recommendation: Re-save the legacy plugin importers to raise serialization to version 2 without touching the binaries.",
                 fixBtnText: "Re-salvar Metas dos Plugins Legados",
                 fixAction: RunLegacyResavePlugins,
                 items: scan.Items);
@@ -345,15 +345,15 @@ namespace Wagenheimer.UnityUtils.Editor
             RenderScanResults(
                 _iapResultPanel,
                 issueCount: scan.UnusedComponentCount,
-                successMsg: "Nenhum botão IAP não utilizado encontrado!",
-                diagTitle: "Botões Codeless IAP Sem Eventos Configurados",
-                diagDesc: $"Foram encontrados {scan.UnusedComponentCount} componente(s) IAPButton inativos/não utilizados. Componentes IAPButton sem eventos disparam listeners automáticos em background que poluem logs e consomem ciclos de verificação.",
-                recDesc: "Recomendação: Remova componentes IAPButton vazios ou não configurados.",
-                fixBtnText: "Remover Botões IAP Não Utilizados",
+                successMsg: "No unused IAP buttons found!",
+                diagTitle: "Codeless IAP Buttons Without Configured Events",
+                diagDesc: $"Found {scan.UnusedComponentCount} inactive/unused IAPButton component(s). IAPButton components without events fire automatic background listeners that pollute logs and consume check cycles.",
+                recDesc: "Recommendation: Remove empty or unconfigured IAPButton components.",
+                fixBtnText: "Remove Unused IAP Buttons",
                 fixAction: RunIapFixAll,
                 items: scan.Items);
 
-            SetStatus($"IAP scan: {scan.UnusedComponentCount} botões IAP sem uso detectados.");
+            SetStatus($"IAP scan: {scan.UnusedComponentCount} unused IAP button(s) detected.");
         }
 #endif
 
@@ -375,13 +375,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _audioResultPanel,
-                title: "✓ AudioListeners Duplicados Removidos",
+                title: "✓ Duplicate AudioListeners Removed",
                 beforeCount: before > 0 ? before : total,
                 afterCount: 0,
-                benefitDesc: $"Removidos {total} AudioListener(s) duplicados em {sceneRes.ScenesModified} cena(s) e {prefabRes.PrefabsModified} prefab(s). Conflitos de áudio eliminados.",
+                benefitDesc: $"Removed {total} duplicate AudioListener(s) in {sceneRes.ScenesModified} scene(s) and {prefabRes.PrefabsModified} prefab(s). Audio conflicts eliminated.",
                 modifications: allMods);
 
-            SetStatus($"Removidos {total} AudioListener(s) duplicados ({sceneRes.ScenesModified} cena(s), {prefabRes.PrefabsModified} prefab(s)).");
+            SetStatus($"Removed {total} duplicate AudioListener(s) ({sceneRes.ScenesModified} scene(s), {prefabRes.PrefabsModified} prefab(s)).");
         }
 
         private void RunAudioRemoveNonBootstrap()
@@ -392,13 +392,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _audioResultPanel,
-                title: "✓ Listeners Não-Bootstrap Removidos",
+                title: "✓ Non-Bootstrap Listeners Removed",
                 beforeCount: before,
                 afterCount: 0,
-                benefitDesc: "Todos os AudioListeners fora da cena de bootstrap foram limpos com sucesso. Áudio centralizado no Bootstrap.",
+                benefitDesc: "All AudioListeners outside the bootstrap scene were removed successfully. Audio is centralized in the bootstrap scene.",
                 modifications: null);
 
-            SetStatus("Removidos todos os AudioListeners não pertencentes à cena de bootstrap.");
+            SetStatus("Removed all AudioListeners that do not belong to the bootstrap scene.");
         }
 
         private void RunScriptsFixAll()
@@ -415,13 +415,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _scriptsResultPanel,
-                title: "✓ Scripts Ausentes Removidos com Sucesso",
+                title: "✓ Missing Scripts Removed Successfully",
                 beforeCount: before > 0 ? before : total,
                 afterCount: 0,
-                benefitDesc: $"Removidos {total} componentes MonoBehaviour com script ausente em {sceneRes.ScenesModified} cena(s) e {prefabRes.PrefabsModified} prefab(s). Serialização limpa e warnings de console suprimidos.",
+                benefitDesc: $"Removed {total} MonoBehaviour component(s) with a missing script in {sceneRes.ScenesModified} scene(s) and {prefabRes.PrefabsModified} prefab(s). Serialization cleaned and console warnings suppressed.",
                 modifications: allMods);
 
-            SetStatus($"Removidos {total} script(s) ausente(s) ({sceneRes.ScenesModified} cena(s), {prefabRes.PrefabsModified} prefab(s)).");
+            SetStatus($"Removed {total} missing script(s) ({sceneRes.ScenesModified} scene(s), {prefabRes.PrefabsModified} prefab(s)).");
         }
 
         private void RunTmpCanvasFix()
@@ -432,13 +432,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _tmpResultPanel,
-                title: "✓ CanvasRenderers Redundantes Removidos",
+                title: "✓ Redundant CanvasRenderers Removed",
                 beforeCount: before > 0 ? before : res.ObjectsFixed,
                 afterCount: 0,
-                benefitDesc: $"Removidos {res.ObjectsFixed} CanvasRenderer(s) redundantes em textos 3D ({res.ScenesChanged} cena(s), {res.PrefabsChanged} prefab(s)). Warnings de 'Please remove the CanvasRenderer' suprimidos.",
+                benefitDesc: $"Removed {res.ObjectsFixed} redundant CanvasRenderer(s) on 3D texts ({res.ScenesChanged} scene(s), {res.PrefabsChanged} prefab(s)). 'Please remove the CanvasRenderer' warnings suppressed.",
                 modifications: res.Modifications);
 
-            SetStatus($"Corrigidos {res.ObjectsFixed} CanvasRenderer(s) redundantes em TextMeshPro 3D.");
+            SetStatus($"Fixed {res.ObjectsFixed} redundant CanvasRenderer(s) on 3D TextMeshPro.");
         }
 
         private void RunTmpContainerFix()
@@ -449,13 +449,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _tmpResultPanel,
-                title: "✓ TextContainers Obsoletos Removidos",
+                title: "✓ Obsolete TextContainers Removed",
                 beforeCount: before > 0 ? before : res.ObjectsFixed,
                 afterCount: 0,
-                benefitDesc: $"Removidos {res.ObjectsFixed} TextContainer(s) obsoletos ({res.ScenesChanged} cena(s), {res.PrefabsChanged} prefab(s)).",
+                benefitDesc: $"Removed {res.ObjectsFixed} obsolete TextContainer(s) ({res.ScenesChanged} scene(s), {res.PrefabsChanged} prefab(s)).",
                 modifications: res.Modifications);
 
-            SetStatus($"Corrigidos {res.ObjectsFixed} TextContainer(s) obsoletos.");
+            SetStatus($"Fixed {res.ObjectsFixed} obsolete TextContainer(s).");
         }
 
         private void RunAnimFix(AnimatorTransitionCleaner.FixMode mode)
@@ -465,13 +465,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _animResultPanel,
-                title: mode == AnimatorTransitionCleaner.FixMode.EnableExitTime ? "✓ Exit Time Habilitado nas Transições" : "✓ Transições Inválidas Removidas",
+                title: mode == AnimatorTransitionCleaner.FixMode.EnableExitTime ? "✓ Exit Time Enabled on Transitions" : "✓ Invalid Transitions Removed",
                 beforeCount: before > 0 ? before : res.TransitionsFixed,
                 afterCount: 0,
-                benefitDesc: $"Corrigidas {res.TransitionsFixed} transição(ões) em {res.ControllersModified} Animator Controller(s). Warnings de 'doesn't have an Exit Time' suprimidos.",
+                benefitDesc: $"Fixed {res.TransitionsFixed} transition(s) in {res.ControllersModified} Animator Controller(s). 'doesn't have an Exit Time' warnings suppressed.",
                 modifications: res.Modifications);
 
-            SetStatus($"Corrigidas {res.TransitionsFixed} transição(ões) de Animator.");
+            SetStatus($"Fixed {res.TransitionsFixed} Animator transition(s).");
         }
 
         private void RunLegacyResavePlugins()
@@ -481,13 +481,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _legacyResultPanel,
-                title: "✓ Metadados de Plugins Atualizados para Versão 2",
+                title: "✓ Plugin Metadata Upgraded to Version 2",
                 beforeCount: before > 0 ? before : res.PluginsUpdated,
                 afterCount: 0,
-                benefitDesc: $"Re-salvos e atualizados {res.PluginsUpdated} arquivo(s) .meta de plugins legados. Aviso 'contains a PluginImporter object at version 1' no Unity 6 completamente eliminado.",
+                benefitDesc: $"Re-saved and upgraded {res.PluginsUpdated} legacy plugin .meta file(s). The Unity 6 'contains a PluginImporter object at version 1' warning is gone.",
                 modifications: res.Modifications);
 
-            SetStatus($"Re-salvos {res.PluginsUpdated} importador(es) de plugins legados.");
+            SetStatus($"Re-saved {res.PluginsUpdated} legacy plugin importer(s).");
         }
 
         private void RunLegacyResaveAll()
@@ -496,13 +496,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _legacyResultPanel,
-                title: "✓ Projeto Totalmente Modernizado e Reserializado",
+                title: "✓ Project Fully Modernized and Reserialized",
                 beforeCount: _lastLegacyCount,
                 afterCount: 0,
-                benefitDesc: "Todas as cenas, prefabs e ScriptableObjects foram reserializados e atualizados para o formato nativo do Unity atual. GUILayers e referências órfãs purgadas.",
+                benefitDesc: "All scenes, prefabs and ScriptableObjects were reserialized and upgraded to the current native Unity format. GUILayers and orphaned references purged.",
                 modifications: null);
 
-            SetStatus("Todas as cenas, prefabs e metas de plugins foram resalvos e modernizados.");
+            SetStatus("All scenes, prefabs and plugin metadata were re-saved and modernized.");
         }
 
 #if WAGENHEIMER_UNITYUTILS_IAP
@@ -513,13 +513,13 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderDiffCard(
                 _iapResultPanel,
-                title: "✓ Botões Codeless IAP Limpos",
+                title: "✓ Codeless IAP Buttons Cleaned",
                 beforeCount: before > 0 ? before : res.ObjectsFixed,
                 afterCount: 0,
-                benefitDesc: $"Removidos {res.ObjectsFixed} botão(ões) IAP inativos sem eventos vinculados ({res.ScenesChanged} cena(s), {res.PrefabsChanged} prefab(s)).",
+                benefitDesc: $"Removed {res.ObjectsFixed} inactive IAP button(s) with no bound events ({res.ScenesChanged} scene(s), {res.PrefabsChanged} prefab(s)).",
                 modifications: res.Modifications);
 
-            SetStatus($"Removidos {res.ObjectsFixed} componente(s) IAPButton inativos.");
+            SetStatus($"Removed {res.ObjectsFixed} inactive IAPButton component(s).");
         }
 #endif
 
@@ -594,7 +594,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     var content = new VisualElement();
                     content.AddToClassList("item-content");
 
-                    var pathLabel = new Label($"{(item.IsScene ? "🎬 [Cena] " : item.IsPrefab ? "📦 [Prefab] " : "📄 ")}{item.AssetPath}");
+                    var pathLabel = new Label($"{(item.IsScene ? "🎬 [Scene] " : item.IsPrefab ? "📦 [Prefab] " : "📄 ")}{item.AssetPath}");
                     pathLabel.AddToClassList("item-path");
 
                     var descLabel = new Label(item.Description);

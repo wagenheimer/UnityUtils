@@ -304,12 +304,12 @@ namespace Wagenheimer.UnityUtils.Editor
                     if (!CleanupAssetUtility.TrySavePrefabContents(root, prefabPath))
                         return 0;
 
-                    // Verifica o que foi gravado: recarrega o asset e confirma que não sobrou nenhum.
+                    // Verify what was written: reload the asset and confirm none are left.
                     var remaining = CountInPrefab(prefabPath);
                     if (remaining > 0)
                     {
                         Debug.LogWarning($"[TMPCanvasRendererCleaner] '{prefabPath}': {remaining} CanvasRenderer(s) " +
-                                         "ainda presentes depois de salvar (o prefab pode estar bloqueado ou somente leitura).");
+                                         "still present after saving (the prefab may be locked or read-only).");
                         return fixedCount - remaining;
                     }
                 }
@@ -332,19 +332,19 @@ namespace Wagenheimer.UnityUtils.Editor
             // a world-space TextMeshPro component.
             if (RequiresCanvasRenderer(go)) return 0;
 
-            // Só conta como removido se o componente realmente sumiu (TryDestroyComponent verifica).
+            // Only counts as removed when the component is really gone (TryDestroyComponent verifies it).
             return CleanupAssetUtility.TryDestroyComponent(renderer) ? 1 : 0;
         }
 
         private static bool RequiresCanvasRenderer(GameObject go)
         {
-            // Atenção: TMPro.TextMeshPro (3D) herda de TMP_Text -> MaskableGraphic -> Graphic. Um simples
-            // GetComponent<Graphic>() enxergava o próprio TextMeshPro e nunca removia nada. Só conta como
-            // "precisa de CanvasRenderer" um Graphic que NÃO seja o TextMeshPro de mundo.
+            // Note: TMPro.TextMeshPro (3D) inherits TMP_Text -> MaskableGraphic -> Graphic. A plain
+            // GetComponent<Graphic>() used to find the TextMeshPro itself and never removed anything.
+            // Only a Graphic that is NOT the world-space TextMeshPro keeps the CanvasRenderer.
             foreach (var graphic in go.GetComponents<Graphic>())
             {
-                if (graphic == null) continue;          // script ausente
-                if (graphic is TextMeshPro) continue;   // texto de mundo: não usa Canvas
+                if (graphic == null) continue;          // missing script
+                if (graphic is TextMeshPro) continue;   // world-space text: does not use a Canvas
                 return true;                            // Image, RawImage, TextMeshProUGUI, Text...
             }
 

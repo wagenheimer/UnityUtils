@@ -408,7 +408,7 @@ namespace Wagenheimer.UnityUtils
             ctrlRow.Add(maxBtn);
 
             var closeBtn = MiniButton("X", () => SetOpen(false));
-            closeBtn.tooltip = "Fechar.";
+            closeBtn.tooltip = "Close.";
             ctrlRow.Add(closeBtn);
 
             header.Add(ctrlRow);
@@ -546,7 +546,7 @@ namespace Wagenheimer.UnityUtils
 
             if (shown == 0)
             {
-                var empty = new Label("(sem entradas para o filtro atual)");
+                var empty = new Label("(no entries for the current filter)");
                 empty.style.color = TextMuted;
                 empty.style.fontSize = 10.5f;
                 empty.style.paddingTop = empty.style.paddingLeft = 6;

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -254,7 +253,14 @@ namespace Wagenheimer.UnityUtils.Editor
 
                     try
                     {
-                        importer.SaveAndReimport();
+                        // Count a plugin as upgraded only when its .meta really changed (verified on disk).
+                        if (!TryUpgradePluginImporter(importer, assetPath))
+                        {
+                            Debug.LogWarning($"[LegacyComponentCleaner] '{assetPath}' is still on a legacy PluginImporter " +
+                                             "version after re-saving. Check that the file is writable (version control lock?).");
+                            continue;
+                        }
+
                         updated++;
                         res.Modifications.Add(new CleanupModificationRecord
                         {
@@ -322,11 +328,72 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static bool HasLegacyPluginImporterVersion(string metaText)
         {
-            var match = Regex.Match(metaText, @"PluginImporter:\s*\r?\n\s*serializedVersion:\s*(\d+)");
-            if (!match.Success)
-                return true; // Missing serializedVersion means an old importer that needs upgrading.
+            // A missing serializedVersion means a very old importer that needs upgrading.
+            return !TryReadPluginImporterVersion(metaText, out var version) || version < 2;
+        }
 
-            return int.TryParse(match.Groups[1].Value, out var version) && version < 2;
+        /// <summary>
+        /// Reads the serializedVersion of the PluginImporter block. Current metas look like
+        /// <c>PluginImporter:\n  externalObjects: {}\n  serializedVersion: 2</c>, so the version is NOT
+        /// always the first key and must be read from the block rather than assumed to follow the header
+        /// (the old check required it to be first, so every modern plugin was reported as legacy forever).
+        /// </summary>
+        private static bool TryReadPluginImporterVersion(string metaText, out int version)
+        {
+            version = 0;
+            var inBlock = false;
+
+            foreach (var rawLine in metaText.Split('\n'))
+            {
+                var line = rawLine.TrimEnd('\r');
+
+                if (!inBlock)
+                {
+                    if (line.StartsWith("PluginImporter:", StringComparison.Ordinal))
+                        inBlock = true;
+                    continue;
+                }
+
+                // A non-indented line starts the next top-level key: the importer block is over.
+                if (line.Length > 0 && !char.IsWhiteSpace(line[0]))
+                    break;
+
+                // Only direct children (two-space indent) count; nested maps may have their own serializedVersion.
+                const string key = "  serializedVersion:";
+                if (line.StartsWith(key, StringComparison.Ordinal))
+                    return int.TryParse(line.Substring(key.Length).Trim(), out version);
+            }
+
+            return false;
+        }
+
+        private static bool IsLegacyPluginMeta(string assetPath)
+        {
+            try
+            {
+                return HasLegacyPluginImporterVersion(File.ReadAllText(assetPath + ".meta"));
+            }
+            catch (Exception)
+            {
+                return true; // Unreadable meta: do not claim success.
+            }
+        }
+
+        /// <summary>
+        /// Upgrades one plugin .meta and verifies the result on disk. SaveAndReimport only rewrites the
+        /// .meta when the importer is dirty, so it is marked dirty first; if the version is still old,
+        /// ForceReserializeAssets (the supported way to rewrite metadata) is used as a fallback.
+        /// </summary>
+        private static bool TryUpgradePluginImporter(PluginImporter importer, string assetPath)
+        {
+            EditorUtility.SetDirty(importer);
+            importer.SaveAndReimport();
+
+            if (!IsLegacyPluginMeta(assetPath))
+                return true;
+
+            AssetDatabase.ForceReserializeAssets(new[] { assetPath }, ForceReserializeAssetsOptions.ReserializeMetadata);
+            return !IsLegacyPluginMeta(assetPath);
         }
 
         public static void ForceReserializeProject()
