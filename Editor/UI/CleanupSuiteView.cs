@@ -43,6 +43,8 @@ namespace Wagenheimer.UnityUtils.Editor
         private readonly Module _code = new Module { Title = "Obsolete API Usage in Code" };
         private readonly Module _slim = new Module { Title = "Third-Party Slim (2DxFX)", CleanText = "Slim or not installed" };
         private ThirdPartySlimAudit.Result _slimAudit;
+        private readonly Module _pool = new Module { Title = "Legacy PoolManager", CleanText = "Migrated or not used" };
+        private LegacyPoolMigrator.Detection _poolDetection;
 
         private VisualElement _suggestionsBox;
         private bool _showFindingsFixResult;
@@ -179,6 +181,13 @@ namespace Wagenheimer.UnityUtils.Editor
                     bar.Add(UnityUtilsUIStyle.CreateButton("Advanced: Resave Entire Project", "btn-danger", ConfirmAndModernizeProject));
                 }));
 
+            scroll.Add(BuildCard(_pool,
+                "Detects the old Path-o-logical PoolManager (plugin folder, SpawnPool components, 'using PathologicalGames' in scripts) and migrates it to the UnityUtils pooling. Every changed file is backed up first.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Scanning legacy PoolManager", PoolScanRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Migrate PoolManager", "btn-primary", ConfirmAndMigratePool));
+                }));
             scroll.Add(BuildCard(_slim,
                 "Keeps only what the project really uses from the 2DxFX pack: unused scripts, shaders, resources and the Examples, Doc and ExtraShaders folders are deleted, and editor-only resources are moved out of the build. Already-slim packs report nothing.",
                 bar =>
@@ -234,6 +243,8 @@ namespace Wagenheimer.UnityUtils.Editor
             Register(_anim, "Enable Exit Time on transitions", "Enabling Exit Time",
                 p => AnimFixRoutine(p, AnimatorTransitionCleaner.FixMode.EnableExitTime));
             Register(_legacy, "Upgrade legacy plugin metadata", "Upgrading plugin metadata", LegacyPluginFixRoutine);
+            _pool.FixLabel = "Migrate the legacy PoolManager to UnityUtils pooling (backed up first)";
+            _pool.FixAction = ConfirmAndMigratePool;
             _slim.FixLabel = "Delete everything unused from the 2DxFX pack";
             _slim.FixAction = ConfirmAndSlim;
             _code.FixLabel = "Rewrite obsolete code (review the diff in version control)";
@@ -433,9 +444,9 @@ namespace Wagenheimer.UnityUtils.Editor
         private IEnumerator FullScanRoutine(CleanupProgress p)
         {
 #if WAGENHEIMER_UNITYUTILS_IAP
-            p.SetStageCount(9);
+            p.SetStageCount(10);
 #else
-            p.SetStageCount(8);
+            p.SetStageCount(9);
 #endif
             yield return AudioScanRoutine(p);
             if (p.CancelRequested) yield break;
@@ -456,6 +467,9 @@ namespace Wagenheimer.UnityUtils.Editor
             if (p.CancelRequested) yield break;
 
             yield return SlimScanRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return PoolScanRoutine(p);
 #if WAGENHEIMER_UNITYUTILS_IAP
             if (p.CancelRequested) yield break;
 
@@ -609,6 +623,97 @@ namespace Wagenheimer.UnityUtils.Editor
                 items: scan.Items);
 
             SetStatus($"Legacy scan: {scan.LegacyPluginCount} legacy plugin meta file(s) found in the project.");
+        }
+
+        private IEnumerator PoolScanRoutine(CleanupProgress p)
+        {
+            p.NextStage("Looking for the legacy PoolManager", 1);
+            p.SetDetail("Checking the plugin folder, scenes, prefabs and scripts...");
+            yield return null; // Let the progress panel paint before the (synchronous) detection starts.
+
+            var detection = LegacyPoolMigrator.Detect();
+            p.Advance("Done");
+
+            if (detection.Cancelled)
+                yield break;
+
+            _poolDetection = detection;
+            var count = detection.HasLegacy
+                ? Math.Max(1, detection.AssetPaths.Count + detection.ScriptPaths.Count + (detection.LegacyPluginPresent ? 1 : 0))
+                : 0;
+            SetIssues(_pool, count);
+
+            var items = new List<CleanupIssueItem>();
+            foreach (var path in detection.AssetPaths)
+                items.Add(new CleanupIssueItem { AssetPath = path, TargetName = System.IO.Path.GetFileName(path), Description = "Uses the legacy SpawnPool / PreRuntimePoolItem components", Category = "PoolManager", Count = 1 });
+            foreach (var path in detection.ScriptPaths)
+                items.Add(new CleanupIssueItem { AssetPath = path, TargetName = System.IO.Path.GetFileName(path), Description = "Uses the legacy PathologicalGames API", Category = "PoolManager", Count = 1 });
+
+            RenderScanResults(
+                _pool,
+                issueCount: count,
+                successMsg: "No legacy PoolManager left: pooling already runs on UnityUtils (or the project does not pool).",
+                diagTitle: "Legacy Path-o-logical PoolManager Detected",
+                diagDesc: detection.Summary,
+                recDesc: detection.CanRun
+                    ? "Recommendation: migrate now. Components keep their serialized data, scripts switch namespace, the old plugin is removed, and every changed file is backed up under Library/UnityUtilsPoolMigrationBackup."
+                    : "The new pooling scripts were not found yet: wait for the compile to finish, then scan again.",
+                fixBtnText: detection.CanRun ? "Migrate PoolManager" : null,
+                fixRoutine: null,
+                fixTitle: null,
+                items: items,
+                customFix: detection.CanRun ? (Action)ConfirmAndMigratePool : null);
+
+            SetStatus($"PoolManager scan: {count} legacy item(s).");
+        }
+
+        private void ConfirmAndMigratePool()
+        {
+            if (_poolDetection == null || !_poolDetection.HasLegacy || !_poolDetection.CanRun)
+            {
+                SetStatus("Nothing to migrate: scan first, or the legacy PoolManager is already gone.");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("Migrate PoolManager",
+                    _poolDetection.Summary + "\n\nSpawnPool components are re-pointed (data preserved), scripts switch to " +
+                    "'Wagenheimer.UnityUtils.Pooling', and the legacy plugin folder is removed. Every changed file is backed up " +
+                    "to Library/UnityUtilsPoolMigrationBackup first.\n\nSave your work first. Continue?",
+                    "Migrate", "Cancel"))
+                return;
+
+            StartTask("Migrating PoolManager", PoolFixRoutine);
+        }
+
+        private IEnumerator PoolFixRoutine(CleanupProgress p)
+        {
+            p.NextStage("Migrating the legacy PoolManager", 1);
+            p.SetDetail("Backing up and converting assets and scripts...");
+            yield return null;
+
+            var before = _pool.Issues;
+            var result = LegacyPoolMigrator.Migrate(_poolDetection, removeLegacyPlugin: true);
+            p.Advance("Done");
+
+            if (result.Cancelled)
+            {
+                SetStatus("PoolManager migration cancelled.");
+                yield break;
+            }
+
+            _poolDetection = null;
+            SetIssues(_pool, result.Success ? 0 : Math.Max(1, result.Errors.Count));
+
+            RenderDiffCard(
+                _pool,
+                title: result.Success ? "✓ PoolManager Migrated" : "PoolManager Migration Needs Attention",
+                beforeCount: before,
+                afterCount: _pool.Issues,
+                benefitDesc: result.Summary + (result.Success ? string.Empty : " See the console for the failing files.") +
+                             (string.IsNullOrEmpty(result.BackupPath) ? string.Empty : " Backup: " + result.BackupPath),
+                modifications: null);
+
+            SetStatus("PoolManager: " + result.Summary);
         }
 
         private IEnumerator SlimScanRoutine(CleanupProgress p)
@@ -1096,6 +1201,13 @@ namespace Wagenheimer.UnityUtils.Editor
                 stages += 1;
             }
 
+            if (_pool.Issues > 0 && _poolDetection != null && _poolDetection.CanRun)
+            {
+                steps.Add(Step("Migrating the legacy PoolManager", PoolFixRoutine));
+                summary.Add($"- Legacy PoolManager ({_pool.Issues} item(s); backed up under Library/UnityUtilsPoolMigrationBackup)");
+                stages += 1;
+            }
+
             if (_slim.Issues > 0)
             {
                 steps.Add(Step("Slimming the 2DxFX pack", SlimFixRoutine));
@@ -1297,7 +1409,7 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (_healthLabel == null) return;
 
-            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _slim, _iap, _findings, _code };
+            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _pool, _slim, _iap, _findings, _code };
             var scanned = 0;
             var withIssues = 0;
             var totalIssues = 0;

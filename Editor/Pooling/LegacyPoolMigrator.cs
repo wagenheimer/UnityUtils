@@ -332,15 +332,22 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static bool UsesLegacyApi(string text)
         {
-            return Regex.IsMatch(text, @"using\s+" + Regex.Escape(LegacyNamespace) + @"\s*;") ||
-                   text.Contains(LegacyNamespace + ".") ||
-                   text.Contains("PoolManager.Pools") ||
-                   text.Contains("SpawnPoolsDict") ||
-                   text.Contains("InstanceHandler.") ||
-                   text.Contains("ReadOnlyDictionary") ||
-                   text.Contains("PreRuntimePoolItem") ||
-                   ((Regex.IsMatch(text, @"\bSpawnPool\b") || Regex.IsMatch(text, @"\bPrefabPool\b")) &&
-                    !text.Contains(NewNamespace));
+            if (Regex.IsMatch(text, @"using\s+" + Regex.Escape(LegacyNamespace) + @"\s*;") ||
+                text.Contains(LegacyNamespace + "."))
+                return true;
+
+            // PoolManager.Pools, SpawnPool, InstanceHandler... exist in the new namespace too, so a file that
+            // already references it has been migrated: matching those names again made every converted script
+            // look "legacy" forever and made the migration report failures for files that were fine.
+            if (text.Contains(NewNamespace))
+                return false;
+
+            return Regex.IsMatch(text, @"\bPoolManager\.Pools\b") ||
+                   Regex.IsMatch(text, @"\bSpawnPoolsDict\b") ||
+                   Regex.IsMatch(text, @"\bInstanceHandler\.") ||
+                   Regex.IsMatch(text, @"\bPreRuntimePoolItem\b") ||
+                   Regex.IsMatch(text, @"\bSpawnPool\b") ||
+                   Regex.IsMatch(text, @"\bPrefabPool\b");
         }
 
         private static int CountLegacyReferences(string text)
