@@ -41,6 +41,8 @@ namespace Wagenheimer.UnityUtils.Editor
         private readonly Module _iap = new Module { Title = "Unused IAP Buttons" };
         private readonly Module _findings = new Module { Title = "Problems Unity Reported", CleanText = "None captured" };
         private readonly Module _code = new Module { Title = "Obsolete API Usage in Code" };
+        private readonly Module _slim = new Module { Title = "Third-Party Slim (2DxFX)", CleanText = "Slim or not installed" };
+        private ThirdPartySlimAudit.Result _slimAudit;
 
         private VisualElement _suggestionsBox;
         private bool _showFindingsFixResult;
@@ -177,6 +179,14 @@ namespace Wagenheimer.UnityUtils.Editor
                     bar.Add(UnityUtilsUIStyle.CreateButton("Advanced: Resave Entire Project", "btn-danger", ConfirmAndModernizeProject));
                 }));
 
+            scroll.Add(BuildCard(_slim,
+                "Keeps only what the project really uses from the 2DxFX pack: unused scripts, shaders, resources and the Examples, Doc and ExtraShaders folders are deleted, and editor-only resources are moved out of the build. Already-slim packs report nothing.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Auditing the 2DxFX pack", SlimScanRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Slim Now", "btn-primary", ConfirmAndSlim));
+                }));
+
             AddSection(scroll, "Source Code");
             scroll.Add(BuildCard(_code,
                 "Rewrites code that triggers compiler warnings: obsolete FindObjectOfType / FindObjectsOfType calls and DOTween fields that Unity cannot serialize ([System.NonSerialized]). Only the folder below is touched.",
@@ -224,6 +234,8 @@ namespace Wagenheimer.UnityUtils.Editor
             Register(_anim, "Enable Exit Time on transitions", "Enabling Exit Time",
                 p => AnimFixRoutine(p, AnimatorTransitionCleaner.FixMode.EnableExitTime));
             Register(_legacy, "Upgrade legacy plugin metadata", "Upgrading plugin metadata", LegacyPluginFixRoutine);
+            _slim.FixLabel = "Delete everything unused from the 2DxFX pack";
+            _slim.FixAction = ConfirmAndSlim;
             _code.FixLabel = "Rewrite obsolete code (review the diff in version control)";
             _code.FixAction = ConfirmAndFixCode;
 #if WAGENHEIMER_UNITYUTILS_IAP
@@ -421,9 +433,9 @@ namespace Wagenheimer.UnityUtils.Editor
         private IEnumerator FullScanRoutine(CleanupProgress p)
         {
 #if WAGENHEIMER_UNITYUTILS_IAP
-            p.SetStageCount(8);
+            p.SetStageCount(9);
 #else
-            p.SetStageCount(7);
+            p.SetStageCount(8);
 #endif
             yield return AudioScanRoutine(p);
             if (p.CancelRequested) yield break;
@@ -441,6 +453,9 @@ namespace Wagenheimer.UnityUtils.Editor
             if (p.CancelRequested) yield break;
 
             yield return CodeScanRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return SlimScanRoutine(p);
 #if WAGENHEIMER_UNITYUTILS_IAP
             if (p.CancelRequested) yield break;
 
@@ -594,6 +609,113 @@ namespace Wagenheimer.UnityUtils.Editor
                 items: scan.Items);
 
             SetStatus($"Legacy scan: {scan.LegacyPluginCount} legacy plugin meta file(s) found in the project.");
+        }
+
+        private IEnumerator SlimScanRoutine(CleanupProgress p)
+        {
+            p.NextStage("Auditing the 2DxFX pack", 1);
+            p.SetDetail("Resolving which pack scripts, shaders and resources the project uses...");
+            yield return null; // Let the progress panel paint before the (synchronous) audit starts.
+
+            var audit = ThirdPartySlimAudit.Run();
+            p.Advance("Done");
+            _slimAudit = audit;
+
+            if (!audit.PackFound)
+            {
+                SetIssues(_slim, 0);
+                RenderScanResults(_slim, 0, "The 2DxFX pack is not installed in this project. Nothing to slim.",
+                    null, null, null, null, null, null, null);
+                SetStatus("Slim scan: 2DxFX is not installed.");
+                yield break;
+            }
+
+            if (!string.IsNullOrEmpty(audit.Error))
+            {
+                SetIssues(_slim, 0);
+                SetStatus("Slim scan failed: " + audit.Error);
+                yield break;
+            }
+
+            var items = new List<CleanupIssueItem>();
+            foreach (var finding in audit.Findings)
+            {
+                items.Add(new CleanupIssueItem
+                {
+                    AssetPath = finding.Path,
+                    TargetName = System.IO.Path.GetFileName(finding.Path),
+                    Description = $"{finding.Kind} ({ThirdPartySlimResult.FormatBytes(finding.SizeBytes)})",
+                    Category = "2DxFX slim",
+                    Count = 1
+                });
+            }
+
+            SetIssues(_slim, audit.PendingCount);
+
+            RenderScanResults(
+                _slim,
+                issueCount: audit.PendingCount,
+                successMsg: $"The 2DxFX pack at {audit.Profile.RootFolder} is already slim: only what the project uses is left.",
+                diagTitle: "2DxFX Pack Still Carries Unused Content",
+                diagDesc: $"{audit.PendingCount} item(s) (~{ThirdPartySlimResult.FormatBytes(audit.PendingBytes)}) in {audit.Profile.RootFolder} are not used by any scene, prefab or material: " +
+                          $"{audit.Scan.UnusedScriptCount} script(s), {audit.Scan.UnusedShaderCount} shader(s), {audit.Scan.UnusedResourceCount} resource(s), " +
+                          $"{audit.Scan.RemovableFolderPaths.Count} sample/doc folder(s) and {audit.Scan.EditorOnlyResourceCount} editor-only resource(s) shipped in the build. " +
+                          "They bloat import time, the shader list and the build.",
+                recDesc: "Recommendation: delete everything unused (commit first; usage is resolved by GUID in scenes, prefabs and materials).",
+                fixBtnText: "Slim Now (Delete Unused)",
+                fixRoutine: null,
+                fixTitle: null,
+                items: items,
+                customFix: ConfirmAndSlim);
+
+            SetStatus($"Slim scan: {audit.PendingCount} removable item(s) in the 2DxFX pack.");
+        }
+
+        private void ConfirmAndSlim()
+        {
+            if (_slimAudit == null || !_slimAudit.PackFound || _slimAudit.PendingCount == 0)
+            {
+                SetStatus("Nothing to slim: scan first, or the 2DxFX pack is already slim / not installed.");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("Slim the 2DxFX pack",
+                    $"This permanently deletes {_slimAudit.PendingCount} unused item(s) (~{ThirdPartySlimResult.FormatBytes(_slimAudit.PendingBytes)}) " +
+                    $"from {_slimAudit.Profile.RootFolder}: unused scripts, shaders, resources and the Examples/Doc/ExtraShaders folders.\n\n" +
+                    "Only content no scene, prefab or material references is removed. Make sure your work is committed first.",
+                    "Slim", "Cancel"))
+                return;
+
+            StartTask("Slimming the 2DxFX pack", SlimFixRoutine);
+        }
+
+        private IEnumerator SlimFixRoutine(CleanupProgress p)
+        {
+            p.NextStage("Slimming the 2DxFX pack", 1);
+            p.SetDetail("Deleting unused content...");
+            yield return null;
+
+            var audit = _slimAudit;
+            if (audit == null || !audit.PackFound)
+                audit = ThirdPartySlimAudit.Run();
+
+            var before = audit.PendingCount;
+            var result = ThirdPartySlimAudit.Apply(audit);
+            p.Advance("Done");
+
+            // Re-audit: whatever is still pending could not be removed.
+            _slimAudit = ThirdPartySlimAudit.Run();
+            SetIssues(_slim, _slimAudit.PackFound ? _slimAudit.PendingCount : 0);
+
+            RenderDiffCard(
+                _slim,
+                title: "✓ 2DxFX Pack Slimmed",
+                beforeCount: before,
+                afterCount: _slim.Issues,
+                benefitDesc: result.Summary,
+                modifications: null);
+
+            SetStatus("Slim: " + result.Summary);
         }
 
 #if WAGENHEIMER_UNITYUTILS_IAP
@@ -974,6 +1096,13 @@ namespace Wagenheimer.UnityUtils.Editor
                 stages += 1;
             }
 
+            if (_slim.Issues > 0)
+            {
+                steps.Add(Step("Slimming the 2DxFX pack", SlimFixRoutine));
+                summary.Add($"- {_slim.Issues} unused 2DxFX item(s) (will be DELETED, ~{ThirdPartySlimResult.FormatBytes(_slimAudit != null ? _slimAudit.PendingBytes : 0)})");
+                stages += 1;
+            }
+
 #if WAGENHEIMER_UNITYUTILS_IAP
             if (_iap.Issues > 0)
             {
@@ -1168,7 +1297,7 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (_healthLabel == null) return;
 
-            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _iap, _findings, _code };
+            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _slim, _iap, _findings, _code };
             var scanned = 0;
             var withIssues = 0;
             var totalIssues = 0;

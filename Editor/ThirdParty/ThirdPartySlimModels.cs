@@ -209,9 +209,9 @@ namespace Wagenheimer.UnityUtils.Editor
         public bool DeleteUnusedShaders = true;
         public bool DeleteUnusedResources = true;
         public bool MoveEditorResourcesOutOfBuild = true;
-        public bool RemoveExamplesFolder;
+        public bool RemoveExamplesFolder = true;
         public bool RemoveDocFolder = true;
-        public bool RemoveExtraShadersFolder;
+        public bool RemoveExtraShadersFolder = true;
     }
 
     /// <summary>Outcome of a slim or extract operation.</summary>

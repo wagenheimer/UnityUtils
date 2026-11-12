@@ -252,8 +252,8 @@ namespace Wagenheimer.UnityUtils.Editor
             _optResources = new Toggle("Delete unused Resources assets") { value = true };
             _optMoveEditor = new Toggle("Move editor-only Resources into Editor/Resources") { value = true };
             _optDoc = new Toggle("Delete Doc folder") { value = true };
-            _optExamples = new Toggle("Delete Examples folder") { value = false };
-            _optExtra = new Toggle("Delete ExtraShaders folder") { value = false };
+            _optExamples = new Toggle("Delete Examples folder") { value = true };
+            _optExtra = new Toggle("Delete ExtraShaders folder") { value = true };
             block.Add(_optScripts);
             block.Add(_optShaders);
             block.Add(_optResources);
