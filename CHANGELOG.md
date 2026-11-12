@@ -2,6 +2,14 @@ name: UnityUtils
 
 # Changelog
 
+## [1.27.1] - 2026-11-12
+
+### Added
+- 2DxFX slim integrated in Project Cleanup scan (detect, suggest, auto-fix); defaults delete everything unused
+
+### Fixed
+- stop flagging already-migrated scripts as legacy; add PoolManager module to Project Cleanup scan
+
 ## [1.27.0] - 2026-11-12
 
 ### Added
