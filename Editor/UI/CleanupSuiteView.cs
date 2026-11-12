@@ -1084,7 +1084,7 @@ namespace Wagenheimer.UnityUtils.Editor
             yield return CodeModernizer.ScanRoutine(p, r => scan = r);
             if (p.CancelRequested) yield break;
 
-            SetIssues(_code, scan.EditCount);
+            SetIssues(_code, scan.EditCount + scan.AdvisoryCount);
 
             // Thousands of rows would make the list unusable; the full list is one Fix away anyway.
             const int maxRows = 200;
@@ -1095,10 +1095,11 @@ namespace Wagenheimer.UnityUtils.Editor
 
             RenderScanResults(
                 _code,
-                issueCount: scan.EditCount,
+                issueCount: scan.EditCount + scan.AdvisoryCount,
                 successMsg: $"No obsolete API usage found under {CodeModernizer.ScopeFolder}.",
                 diagTitle: "Obsolete API Usage Found in Code",
                 diagDesc: $"Found {scan.EditCount} change(s) in {scan.AffectedFiles} script(s): obsolete FindObjectOfType / FindObjectsOfType calls and DOTween fields Unity cannot serialize (they get [System.NonSerialized], which matches what Unity already does)." +
+                          (scan.LegacyAnalyticsCalls > 0 ? $" Also {scan.LegacyAnalyticsCalls} call(s) to the deprecated Analytics.CustomEvent (com.unity.analytics): they migrate to GameAnalytics.Track from com.wagenheimer.tracking (Unity Analytics)." : string.Empty) +
                           (truncated ? $" Showing the first {maxRows}." : string.Empty) +
                           (scan.SkippedFiles > 0 ? $" {scan.SkippedFiles} file(s) were skipped (not valid UTF-8)." : string.Empty),
                 recDesc: "Recommendation: apply the rewrite, let Unity recompile, then review the diff in version control. Code inside UNITY_* conditional blocks is never changed.",
@@ -1108,7 +1109,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 items: shown,
                 customFix: ConfirmAndFixCode);
 
-            SetStatus($"Code scan: {scan.EditCount} change(s) available in {scan.AffectedFiles} script(s) under {CodeModernizer.ScopeFolder}.");
+            SetStatus($"Code scan: {scan.EditCount} change(s) available in {scan.AffectedFiles} script(s) under {CodeModernizer.ScopeFolder}" + (scan.AdvisoryCount > 0 ? $", plus {scan.AdvisoryCount} manual step(s)." : "."));
         }
 
         #endregion
@@ -1119,7 +1120,8 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (!EditorUtility.DisplayDialog("Rewrite Code",
                     $"This rewrites scripts under '{CodeModernizer.ScopeFolder}': obsolete FindObjectOfType / FindObjectsOfType calls are " +
-                    "migrated and unserializable DOTween fields get [System.NonSerialized]. Code inside UNITY_* conditional " +
+                    "migrated, unserializable DOTween fields get [System.NonSerialized] and Analytics.CustomEvent statements move to " +
+                    "GameAnalytics.Track (Unity Analytics, when com.wagenheimer.tracking is installed). Code inside UNITY_* conditional " +
                     "blocks is not changed.\n\nMake sure your work is committed first so you can review the diff. " +
                     "Unity will recompile afterwards.",
                     "Rewrite", "Cancel"))

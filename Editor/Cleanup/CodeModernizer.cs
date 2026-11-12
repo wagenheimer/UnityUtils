@@ -18,6 +18,9 @@ namespace Wagenheimer.UnityUtils.Editor
     /// skipped by serialization. It gets <c>[System.NonSerialized]</c>, which states what Unity already does.</description></item>
     /// <item><description>Obsolete <c>FindObjectOfType</c>/<c>FindObjectsOfType</c> and the obsolete sort-mode overloads of
     /// <c>FindObjectsByType</c> are migrated to the replacement the installed Unity version offers.</description></item>
+    /// <item><description>The deprecated <c>com.unity.analytics</c> API: <c>Analytics.CustomEvent(...)</c> statements are
+    /// migrated to <c>Wagenheimer.Tracking.GameAnalytics.Track(...)</c> (Unity Analytics, package
+    /// <c>com.wagenheimer.tracking</c>) when that package is installed; otherwise the scan reports what to install.</description></item>
     /// </list>
     /// Only files under a chosen folder are touched (default: the project's own code), anything inside a
     /// <c>UNITY_*</c> conditional compilation block is left alone, and the rewrite is a plain text edit
@@ -40,6 +43,10 @@ namespace Wagenheimer.UnityUtils.Editor
             public int EditCount;
             public int AffectedFiles;
             public int SkippedFiles;
+            /// <summary>Calls to the deprecated Analytics.CustomEvent found in scripts (migratable or not).</summary>
+            public int LegacyAnalyticsCalls;
+            /// <summary>Findings that need a manual step (install a package, remove a package, hand edits).</summary>
+            public int AdvisoryCount;
             public List<string> Details;
             public List<CleanupIssueItem> Items;
         }
@@ -51,6 +58,15 @@ namespace Wagenheimer.UnityUtils.Editor
             public int FilesSkipped;
             public List<CleanupModificationRecord> Modifications;
         }
+
+        // Analytics.CustomEvent(...) / UnityEngine.Analytics.Analytics.CustomEvent(...), never a member of another type.
+        private static readonly Regex LegacyCustomEvent = new Regex(
+            @"(?<![\w.])(?:UnityEngine\.Analytics\.)?Analytics\.CustomEvent\s*\(", RegexOptions.CultureInvariant);
+
+        private const string GameAnalyticsCall = "Wagenheimer.Tracking.GameAnalytics.Track(";
+
+        private static readonly bool HasGameAnalytics = AppDomain.CurrentDomain.GetAssemblies()
+            .Any(a => a.GetType("Wagenheimer.Tracking.GameAnalytics", false) != null);
 
         private const string ScopePreference = "WagenheimerUnityUtils.CodeModernizer.Scope";
         private const string NonSerializedAttribute = "[System.NonSerialized] ";
@@ -121,6 +137,8 @@ namespace Wagenheimer.UnityUtils.Editor
                     continue;
                 }
 
+                scan.LegacyAnalyticsCalls += LegacyCustomEvent.Matches(text).Count;
+
                 var edits = FindEdits(text);
                 if (edits.Count > 0)
                 {
@@ -146,7 +164,41 @@ namespace Wagenheimer.UnityUtils.Editor
                 yield return null;
             }
 
+            AddLegacyAnalyticsAdvisory(scan);
             done(scan);
+        }
+
+        // Explains the analytics migration even when no edit can be applied yet (new package missing, or
+        // calls whose return value is used and so need a hand edit).
+        private static void AddLegacyAnalyticsAdvisory(ScanResult scan)
+        {
+            var packageInManifest = File.Exists("Packages/manifest.json") &&
+                                    File.ReadAllText("Packages/manifest.json").Contains("\"com.unity.analytics\"");
+
+            string message = null;
+            if (scan.LegacyAnalyticsCalls > 0 && !HasGameAnalytics)
+                message = $"{scan.LegacyAnalyticsCalls} call(s) to the deprecated Analytics.CustomEvent (com.unity.analytics). " +
+                          "Install com.wagenheimer.tracking (GameAnalytics on Unity Analytics) and run this fix to migrate them.";
+            else if (scan.LegacyAnalyticsCalls > 0 && HasGameAnalytics)
+                message = $"{scan.LegacyAnalyticsCalls} call(s) to the deprecated Analytics.CustomEvent in total; those used as an " +
+                          "expression (return value read) must be migrated by hand to GameAnalytics.Track.";
+            else if (packageInManifest && HasGameAnalytics)
+                message = "No Analytics.CustomEvent calls are left: remove the deprecated com.unity.analytics package from Packages/manifest.json.";
+
+            if (message == null) return;
+
+            scan.AdvisoryCount++;
+            scan.Details.Add(message);
+            scan.Items.Add(new CleanupIssueItem
+            {
+                AssetPath = "Packages/manifest.json",
+                TargetName = "com.unity.analytics",
+                Description = message,
+                Category = "Analytics",
+                IsScene = false,
+                IsPrefab = false,
+                Count = Math.Max(1, scan.LegacyAnalyticsCalls)
+            });
         }
 
         public static IEnumerator FixRoutine(CleanupProgress progress, Action<CleanResult> done)
@@ -225,6 +277,9 @@ namespace Wagenheimer.UnityUtils.Editor
             if (HasFindFirst)
                 AddFindApiEdits(text, edits, lineStarts, ShouldSkip);
 
+            if (HasGameAnalytics)
+                AddLegacyAnalyticsEdits(text, edits, lineStarts, ShouldSkip);
+
             // Keep edits ordered and non-overlapping (two rules never target the same span in practice).
             edits.Sort((a, b) => a.Index.CompareTo(b.Index));
             for (var i = edits.Count - 1; i > 0; i--)
@@ -263,6 +318,29 @@ namespace Wagenheimer.UnityUtils.Editor
                     After = after
                 });
             }
+        }
+
+        private static void AddLegacyAnalyticsEdits(string text, List<Edit> edits, List<int> lineStarts, Func<int, bool> shouldSkip)
+        {
+            foreach (Match m in LegacyCustomEvent.Matches(text))
+            {
+                // Only statements: GameAnalytics.Track returns void, so a call whose result is used stays manual.
+                if (!IsStatementStart(text, m.Index)) continue;
+
+                AddReplace(edits, lineStarts, shouldSkip, m, GameAnalyticsCall);
+            }
+        }
+
+        private static bool IsStatementStart(string text, int index)
+        {
+            for (var i = index - 1; i >= 0; i--)
+            {
+                var c = text[i];
+                if (char.IsWhiteSpace(c)) continue;
+                return c == ';' || c == '{' || c == '}' || c == ')';
+            }
+
+            return true;
         }
 
         private static void AddFindApiEdits(string text, List<Edit> edits, List<int> lineStarts, Func<int, bool> shouldSkip)
