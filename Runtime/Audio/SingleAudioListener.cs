@@ -50,7 +50,9 @@ namespace Wagenheimer.UnityUtils
         /// </summary>
         public static void EnforceSingleListener()
         {
-#if UNITY_2023_1_OR_NEWER
+#if UNITY_6000_0_OR_NEWER
+            var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude);
+#elif UNITY_2023_1_OR_NEWER
             var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
 #else
             var listeners = Object.FindObjectsOfType<AudioListener>();

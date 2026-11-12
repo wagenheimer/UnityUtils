@@ -103,7 +103,11 @@ namespace Wagenheimer.UnityUtils
         private static void AutoInitialize()
         {
             if (!Debug.isDebugBuild && !Application.isEditor) return;
+#if UNITY_2023_1_OR_NEWER
+            if (FindAnyObjectByType<DebugConsoleOverlay>() == null)
+#else
             if (FindObjectOfType<DebugConsoleOverlay>() == null)
+#endif
             {
                 var go = new GameObject("DebugConsoleOverlay");
                 go.AddComponent<DebugConsoleOverlay>();
@@ -665,7 +669,11 @@ namespace Wagenheimer.UnityUtils
         /// <summary>Programmatically instantiates the console if one does not exist.</summary>
         public static DebugConsoleOverlay CreateOverlay()
         {
+#if UNITY_2023_1_OR_NEWER
+            var existing = FindAnyObjectByType<DebugConsoleOverlay>();
+#else
             var existing = FindObjectOfType<DebugConsoleOverlay>();
+#endif
             if (existing != null) return existing;
             var go = new GameObject("DebugConsoleOverlay", typeof(DebugConsoleOverlay));
             return go.GetComponent<DebugConsoleOverlay>();
