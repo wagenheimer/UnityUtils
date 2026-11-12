@@ -2,6 +2,14 @@ name: UnityUtils
 
 # Changelog
 
+## [1.32.0] - 2026-11-12
+
+### Added
+- migrate deprecated Analytics.CustomEvent to GameAnalytics and flag com.unity.analytics
+
+### Fixed
+- replace obsolete FindObjectOfType and FindObjectsSortMode calls
+
 ## [1.31.0] - 2026-11-12
 
 ### Added
