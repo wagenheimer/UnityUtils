@@ -24,7 +24,10 @@ namespace Wagenheimer.UnityUtils.Editor
         MissingComponentCreated,
 
         /// <summary>"Parameter 'X' does not exist" (an Animator is asked for a parameter it does not have).</summary>
-        MissingAnimatorParameter
+        MissingAnimatorParameter,
+
+        /// <summary>"Please remove the CanvasRenderer component from the [X] GameObject" (world-space TextMeshPro).</summary>
+        TmpRedundantCanvasRenderer
     }
 
     /// <summary>One problem Unity reported on the console while a cleanup task was running.</summary>
@@ -38,7 +41,8 @@ namespace Wagenheimer.UnityUtils.Editor
         public string Message;
 
         /// <summary>True when re-saving the asset in the current Unity version makes the message go away.</summary>
-        public bool FixableByResave => Kind != ConsoleFindingKind.MissingAnimatorParameter;
+        public bool FixableByResave => Kind != ConsoleFindingKind.MissingAnimatorParameter &&
+                                       Kind != ConsoleFindingKind.TmpRedundantCanvasRenderer;
     }
 
     /// <summary>
@@ -67,6 +71,10 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private static readonly Regex CreatingMissing = new Regex(
             "Creating missing (?<name>\\w+) component for (?<what>.+?) in (?<obj>\\S+)\\.",
+            RegexOptions.CultureInvariant);
+
+        private static readonly Regex TmpCanvasRenderer = new Regex(
+            "Please remove the CanvasRenderer component from the \\[(?<obj>[^\\]]+)\\] GameObject",
             RegexOptions.CultureInvariant);
 
         private static readonly Regex AnimatorParameter = new Regex(
@@ -106,6 +114,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 case ConsoleFindingKind.LegacyComponent: return "Scenes with a removed legacy component (for example GUI Layer)";
                 case ConsoleFindingKind.MissingComponentRemoved: return "Objects with a component Unity could not load";
                 case ConsoleFindingKind.MissingComponentCreated: return "Objects missing a required component";
+                case ConsoleFindingKind.TmpRedundantCanvasRenderer: return "World-space TextMeshPro with a redundant CanvasRenderer";
                 default: return "Animator parameters that do not exist";
             }
         }
@@ -122,6 +131,8 @@ namespace Wagenheimer.UnityUtils.Editor
                     return "Unity removes the broken component on load. Re-saving makes the removal permanent so the message stops.";
                 case ConsoleFindingKind.MissingComponentCreated:
                     return "Unity recreates the component on load. Re-saving stores it so it is no longer recreated every time.";
+                case ConsoleFindingKind.TmpRedundantCanvasRenderer:
+                    return "Remove it with 'Fix All TMP Redundancies' in the TextMesh Pro card; re-saving alone does not help.";
                 default:
                     return "A script or state machine asks an Animator for a parameter that is not defined. Needs manual attention: add the parameter or fix the name.";
             }
@@ -148,6 +159,10 @@ namespace Wagenheimer.UnityUtils.Editor
             else if (CreatingMissing.IsMatch(condition))
             {
                 Add(ConsoleFindingKind.MissingComponentCreated, CurrentAssetPath(), condition);
+            }
+            else if (TmpCanvasRenderer.IsMatch(condition))
+            {
+                Add(ConsoleFindingKind.TmpRedundantCanvasRenderer, CurrentAssetPath(), condition);
             }
             else if (AnimatorParameter.IsMatch(condition))
             {
@@ -183,10 +198,11 @@ namespace Wagenheimer.UnityUtils.Editor
         /// (materials, render textures, prefabs...) goes through ForceReserializeAssets in small batches.
         /// Time-sliced: run it with <see cref="CleanupRunner.Start"/>. Reports how many assets were re-saved.
         /// </summary>
-        public static IEnumerator FixRoutine(CleanupProgress progress, Action<int> done)
+        public static IEnumerator FixRoutine(CleanupProgress progress, Action<int> done,
+            Func<ConsoleFinding, bool> filter = null)
         {
             var targets = Found
-                .Where(f => f.FixableByResave && !string.IsNullOrEmpty(f.AssetPath))
+                .Where(f => f.FixableByResave && !string.IsNullOrEmpty(f.AssetPath) && (filter == null || filter(f)))
                 .Select(f => f.AssetPath)
                 .Distinct()
                 .Where(path => !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
@@ -263,7 +279,8 @@ namespace Wagenheimer.UnityUtils.Editor
             }
 
             // Opening the old scenes logged their warnings again while fixing: drop everything for fixed assets.
-            Found.RemoveAll(f => fixedPaths.Contains(f.AssetPath));
+            Found.RemoveAll(f => fixedPaths.Contains(f.AssetPath) && f.FixableByResave &&
+                                 (filter == null || filter(f)));
             RebuildKeys();
             Changed?.Invoke();
 

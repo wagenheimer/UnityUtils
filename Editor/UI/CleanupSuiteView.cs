@@ -506,26 +506,44 @@ namespace Wagenheimer.UnityUtils.Editor
             yield return TMPTextContainerCleaner.ScanProjectRoutine(p, r => cScan = r);
             if (p.CancelRequested) yield break;
 
-            var total = rScan.RedundantRendererCount + cScan.ObsoleteContainerCount;
+            // Unity re-creates components a script requires (RequireComponent) every time it loads an object
+            // that lacks them: the warnings were captured while scanning, so they count here too.
+            var missingRequired = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Where(ConsoleFindings.All,
+                f => f.Kind == ConsoleFindingKind.MissingComponentCreated && !string.IsNullOrEmpty(f.AssetPath)));
+
+            var total = rScan.RedundantRendererCount + cScan.ObsoleteContainerCount + missingRequired.Count;
             SetIssues(_tmp, total);
 
             var combinedItems = new List<CleanupIssueItem>();
             if (rScan.Items != null) combinedItems.AddRange(rScan.Items);
             if (cScan.Items != null) combinedItems.AddRange(cScan.Items);
+            foreach (var finding in missingRequired)
+            {
+                combinedItems.Add(new CleanupIssueItem
+                {
+                    AssetPath = finding.AssetPath,
+                    TargetName = System.IO.Path.GetFileNameWithoutExtension(finding.AssetPath),
+                    Description = finding.Message,
+                    Category = "Missing required component",
+                    IsScene = finding.AssetPath.EndsWith(".unity", StringComparison.OrdinalIgnoreCase),
+                    IsPrefab = finding.AssetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase),
+                    Count = 1
+                });
+            }
 
             RenderScanResults(
                 _tmp,
                 issueCount: total,
                 successMsg: "No redundant TextMeshPro components found. Your 3D and UI texts are clean!",
                 diagTitle: "Redundant / Obsolete TextMeshPro Components",
-                diagDesc: $"Detected {rScan.RedundantRendererCount} unnecessary CanvasRenderer(s) on world-space texts and {cScan.ObsoleteContainerCount} legacy TextContainer(s). World-space TextMeshPro does not need a CanvasRenderer (it logs runtime warnings) and TextContainer is obsolete in current versions.",
-                recDesc: "Recommendation: Safely remove the redundant CanvasRenderers and legacy TextContainers.",
+                diagDesc: $"Detected {rScan.RedundantRendererCount} unnecessary CanvasRenderer(s) on world-space texts and {cScan.ObsoleteContainerCount} legacy TextContainer(s) and {missingRequired.Count} asset(s) with a required component Unity re-creates on every load (for example CanvasGroup on Dialog). World-space TextMeshPro does not need a CanvasRenderer (it logs runtime warnings) and TextContainer is obsolete in current versions.",
+                recDesc: "Recommendation: Safely remove the redundant CanvasRenderers and legacy TextContainers, and re-save assets so missing required components are stored.",
                 fixBtnText: "Fix All TMP Redundancies",
                 fixRoutine: TmpFixAllRoutine,
                 fixTitle: "Fixing TextMesh Pro redundancies",
                 items: combinedItems);
 
-            SetStatus($"TMP scan: {rScan.RedundantRendererCount} redundant CanvasRenderer(s), {cScan.ObsoleteContainerCount} obsolete TextContainer(s).");
+            SetStatus($"TMP scan: {rScan.RedundantRendererCount} redundant CanvasRenderer(s), {cScan.ObsoleteContainerCount} obsolete TextContainer(s), {missingRequired.Count} asset(s) missing a required component.");
         }
 
         private IEnumerator AnimScanRoutine(CleanupProgress p)
@@ -750,11 +768,28 @@ namespace Wagenheimer.UnityUtils.Editor
 
         private IEnumerator TmpFixAllRoutine(CleanupProgress p)
         {
-            p.EnsureStageCount(2);
+            p.EnsureStageCount(3);
             yield return TmpCanvasFixRoutine(p);
             if (p.CancelRequested) yield break;
 
             yield return TmpContainerFixRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return TmpRequiredComponentsFixRoutine(p);
+        }
+
+        private IEnumerator TmpRequiredComponentsFixRoutine(CleanupProgress p)
+        {
+            Func<ConsoleFinding, bool> isMissing = f => f.Kind == ConsoleFindingKind.MissingComponentCreated;
+            if (!System.Linq.Enumerable.Any(ConsoleFindings.All, isMissing))
+                yield break;
+
+            var resaved = 0;
+            yield return ConsoleFindings.FixRoutine(p, n => resaved = n, isMissing);
+
+            SetIssues(_tmp, Math.Max(0, _tmp.Issues - resaved));
+            RefreshFindings();
+            SetStatus($"Re-saved {resaved} asset(s) so their required components (for example CanvasGroup on Dialog) are stored.");
         }
 
         private IEnumerator TmpCanvasFixRoutine(CleanupProgress p)
