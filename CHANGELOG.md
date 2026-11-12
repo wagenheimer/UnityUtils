@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.29.1] - 2026-11-12
+
+### Changed
+- chore: ignore Git Bash crash dumps (*.stackdump)
+
 ## [1.29.0] - 2026-11-12
 
 ### Added
