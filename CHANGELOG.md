@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.31.0] - 2026-11-12
+
+### Added
+- add FitBackground (cover-parent background with configurable artwork ratio)
+
 ## [1.30.0] - 2026-11-12
 
 ### Added
