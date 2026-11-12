@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.29.0] - 2026-11-12
+
+### Added
+- ignore list for textures/samples, atlas folders count as used, pick which fixes to apply
+
 ## [1.28.0] - 2026-11-12
 
 ### Added
