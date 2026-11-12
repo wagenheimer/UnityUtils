@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.30.0] - 2026-11-12
+
+### Added
+- add Rotate, ScaleUpDown, Glow, ButtonPressScale, UISaveOriginalPosition, SpriteFadeInOut, FPSDisplay and LoadingBar
+
 ## [1.29.1] - 2026-11-12
 
 ### Changed
