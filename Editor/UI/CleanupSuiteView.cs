@@ -45,6 +45,14 @@ namespace Wagenheimer.UnityUtils.Editor
         private ThirdPartySlimAudit.Result _slimAudit;
         private readonly Module _pool = new Module { Title = "Legacy PoolManager", CleanText = "Migrated or not used" };
         private LegacyPoolMigrator.Detection _poolDetection;
+        private readonly Module _urp = new Module { Title = "2DxFX Shaders for URP", CleanText = "URP-ready or not applicable" };
+        private readonly Module _samples = new Module { Title = "Unused Sample/Demo Folders", CleanText = "None" };
+        private readonly Module _textures = new Module { Title = "Unused Textures", CleanText = "None" };
+        private readonly Module _size = new Module { Title = "Build Size", CleanText = "Nothing large" };
+        private ProjectBloatAudit.Result _samplesResult;
+        private ProjectBloatAudit.Result _texturesResult;
+        private const string AutoScanPref = "WagenheimerUnityUtils.Cleanup.AutoScan";
+        private const string AutoScanSession = "WagenheimerUnityUtils.Cleanup.AutoScanned";
 
         private VisualElement _suggestionsBox;
         private bool _showFindingsFixResult;
@@ -77,6 +85,15 @@ namespace Wagenheimer.UnityUtils.Editor
             // A task started before this window was (re)opened keeps showing its progress here.
             if (CleanupRunner.IsBusy)
                 BindProgress(CleanupRunner.Current);
+            else if (EditorPrefs.GetBool(AutoScanPref, false) && !SessionState.GetBool(AutoScanSession, false))
+            {
+                SessionState.SetBool(AutoScanSession, true);
+                EditorApplication.delayCall += () =>
+                {
+                    if (!CleanupRunner.IsBusy && !EditorApplication.isPlayingOrWillChangePlaymode)
+                        StartFullScan();
+                };
+            }
         }
 
         #region Layout
@@ -107,6 +124,15 @@ namespace Wagenheimer.UnityUtils.Editor
             includeSamples.AddToClassList("cleanup-option");
             includeSamples.RegisterValueChangedCallback(evt => CleanupAssetUtility.IncludeSamples = evt.newValue);
             topBar.Add(includeSamples);
+
+            var autoScan = new Toggle("Scan automatically when this tab opens (once per Unity session)")
+            {
+                value = EditorPrefs.GetBool(AutoScanPref, false),
+                tooltip = "Runs 'Scan Everything' for you and fills the suggestions. The scan opens every scene, so Unity asks to save open scenes first."
+            };
+            autoScan.AddToClassList("cleanup-option");
+            autoScan.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(AutoScanPref, evt.newValue));
+            topBar.Add(autoScan);
 
             _suggestionsBox = new VisualElement();
             _suggestionsBox.AddToClassList("cleanup-suggestions");
@@ -181,6 +207,35 @@ namespace Wagenheimer.UnityUtils.Editor
                     bar.Add(UnityUtilsUIStyle.CreateButton("Advanced: Resave Entire Project", "btn-danger", ConfirmAndModernizeProject));
                 }));
 
+            AddSection(scroll, "Project Weight");
+            scroll.Add(BuildCard(_samples,
+                "Sample, Demo and Documentation folders of third-party packs that no scene, prefab, material or script outside them uses. They are MOVED to UnusedAssetsBackup (outside Assets), not deleted.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Scanning sample folders", SamplesScanRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Move Out of Assets", "btn-primary", () => ConfirmAndMove(_samples, _samplesResult, "sample/demo folder(s)", "Moving sample folders", SamplesFixRoutine)));
+                }));
+            scroll.Add(BuildCard(_textures,
+                "Textures no scene, prefab, material, animation, shader default or script string references. Resources, StreamingAssets, Editor and Plugins are never touched. They are MOVED to UnusedAssetsBackup, not deleted.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Scanning unused textures", TexturesScanRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Move Out of Assets", "btn-primary", () => ConfirmAndMove(_textures, _texturesResult, "texture(s)", "Moving unused textures", TexturesFixRoutine)));
+                }));
+            scroll.Add(BuildCard(_size,
+                "Resources folders above 10 MB (everything in them ships in the build) and the biggest assets of the last build report. Informational: decide what to shrink or move to Addressables.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Auditing build size", SizeScanRoutine)));
+                }));
+
+            scroll.Add(BuildCard(_urp,
+                "Used 2DxFX shaders that are not URP-compatible yet. Conversion backs the originals up first.",
+                bar =>
+                {
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Auditing the 2DxFX pack", SlimScanRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Convert to URP", "btn-primary", () => StartTask("Converting 2DxFX shaders to URP", UrpFixRoutine)));
+                }));
             scroll.Add(BuildCard(_pool,
                 "Detects the old Path-o-logical PoolManager (plugin folder, SpawnPool components, 'using PathologicalGames' in scripts) and migrates it to the UnityUtils pooling. Every changed file is backed up first.",
                 bar =>
@@ -243,6 +298,11 @@ namespace Wagenheimer.UnityUtils.Editor
             Register(_anim, "Enable Exit Time on transitions", "Enabling Exit Time",
                 p => AnimFixRoutine(p, AnimatorTransitionCleaner.FixMode.EnableExitTime));
             Register(_legacy, "Upgrade legacy plugin metadata", "Upgrading plugin metadata", LegacyPluginFixRoutine);
+            Register(_urp, "Convert the used 2DxFX shaders to URP (originals backed up)", "Converting 2DxFX shaders to URP", UrpFixRoutine);
+            _samples.FixLabel = "Move unused sample/demo folders out of Assets (reversible)";
+            _samples.FixAction = () => ConfirmAndMove(_samples, _samplesResult, "sample/demo folder(s)", "Moving sample folders", SamplesFixRoutine);
+            _textures.FixLabel = "Move unused textures out of Assets (reversible)";
+            _textures.FixAction = () => ConfirmAndMove(_textures, _texturesResult, "texture(s)", "Moving unused textures", TexturesFixRoutine);
             _pool.FixLabel = "Migrate the legacy PoolManager to UnityUtils pooling (backed up first)";
             _pool.FixAction = ConfirmAndMigratePool;
             _slim.FixLabel = "Delete everything unused from the 2DxFX pack";
@@ -444,9 +504,9 @@ namespace Wagenheimer.UnityUtils.Editor
         private IEnumerator FullScanRoutine(CleanupProgress p)
         {
 #if WAGENHEIMER_UNITYUTILS_IAP
-            p.SetStageCount(10);
+            p.SetStageCount(13);
 #else
-            p.SetStageCount(9);
+            p.SetStageCount(12);
 #endif
             yield return AudioScanRoutine(p);
             if (p.CancelRequested) yield break;
@@ -470,6 +530,15 @@ namespace Wagenheimer.UnityUtils.Editor
             if (p.CancelRequested) yield break;
 
             yield return PoolScanRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return SamplesScanRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return TexturesScanRoutine(p);
+            if (p.CancelRequested) yield break;
+
+            yield return SizeScanRoutine(p);
 #if WAGENHEIMER_UNITYUTILS_IAP
             if (p.CancelRequested) yield break;
 
@@ -726,6 +795,9 @@ namespace Wagenheimer.UnityUtils.Editor
             p.Advance("Done");
             _slimAudit = audit;
 
+            SetIssues(_urp, audit.PackFound ? audit.NonUrpShaders.Count : 0);
+            RenderUrp(audit);
+
             if (!audit.PackFound)
             {
                 SetIssues(_slim, 0);
@@ -774,6 +846,135 @@ namespace Wagenheimer.UnityUtils.Editor
                 customFix: ConfirmAndSlim);
 
             SetStatus($"Slim scan: {audit.PendingCount} removable item(s) in the 2DxFX pack.");
+        }
+
+        private void RenderUrp(ThirdPartySlimAudit.Result audit)
+        {
+            var items = new List<CleanupIssueItem>();
+            foreach (var path in audit.NonUrpShaders)
+                items.Add(new CleanupIssueItem { AssetPath = path, TargetName = System.IO.Path.GetFileName(path), Description = "Used shader that is not URP-compatible", Category = "URP shader", Count = 1 });
+
+            RenderScanResults(
+                _urp,
+                issueCount: audit.NonUrpShaders.Count,
+                successMsg: audit.PackFound ? "Every used 2DxFX shader is URP-compatible (or this is not a URP project)." : "The 2DxFX pack is not installed.",
+                diagTitle: "2DxFX Shaders Not Ready for URP",
+                diagDesc: $"{audit.NonUrpShaders.Count} used shader(s) still target the Built-in pipeline and render pink or wrong under URP. Surface shaders may need a manual review after conversion.",
+                recDesc: "Recommendation: convert them now; the originals are backed up next to the pack.",
+                fixBtnText: "Convert to URP",
+                fixRoutine: UrpFixRoutine,
+                fixTitle: "Converting 2DxFX shaders to URP",
+                items: items);
+        }
+
+        private IEnumerator UrpFixRoutine(CleanupProgress p)
+        {
+            p.NextStage("Converting 2DxFX shaders to URP", 1);
+            p.SetDetail("Converting used shaders (originals are backed up)...");
+            yield return null;
+
+            var audit = _slimAudit != null && _slimAudit.PackFound ? _slimAudit : ThirdPartySlimAudit.Run();
+            var before = audit.NonUrpShaders.Count;
+            var result = ThirdPartySlimAudit.ConvertUrp(audit);
+            p.Advance("Done");
+
+            _slimAudit = ThirdPartySlimAudit.Run();
+            SetIssues(_urp, _slimAudit.PackFound ? _slimAudit.NonUrpShaders.Count : 0);
+
+            RenderDiffCard(_urp, "✓ 2DxFX Shaders Converted to URP", before, _urp.Issues,
+                result.Summary + (result.NeedsReview > 0 ? " Check the shaders flagged for review." : string.Empty), null);
+            SetStatus("URP conversion: " + result.Summary);
+        }
+
+        private IEnumerator SamplesScanRoutine(CleanupProgress p)
+        {
+            yield return BloatScan(p, _samples, "Looking for unused sample/demo folders", () => ProjectBloatAudit.ScanSampleFolders(),
+                r => _samplesResult = r, "No unused sample or demo folder found.", "Unused Sample/Demo Folders",
+                "Move them out of Assets (reversible: they go to UnusedAssetsBackup).", "Move Out of Assets",
+                () => ConfirmAndMove(_samples, _samplesResult, "sample/demo folder(s)", "Moving sample folders", SamplesFixRoutine));
+        }
+
+        private IEnumerator TexturesScanRoutine(CleanupProgress p)
+        {
+            yield return BloatScan(p, _textures, "Looking for unused textures", () => ProjectBloatAudit.ScanUnusedTextures(),
+                r => _texturesResult = r, "Every texture is referenced by something.", "Unused Textures",
+                "Move them out of Assets (reversible: they go to UnusedAssetsBackup). Review the list first if you load textures by computed names.", "Move Out of Assets",
+                () => ConfirmAndMove(_textures, _texturesResult, "texture(s)", "Moving unused textures", TexturesFixRoutine));
+        }
+
+        private IEnumerator SizeScanRoutine(CleanupProgress p)
+        {
+            yield return BloatScan(p, _size, "Auditing build size", () => ProjectBloatAudit.ScanBuildSize(),
+                null, "No oversized Resources folder or build asset found.", "Large Assets in the Build",
+                "Shrink or compress them, or move rarely used content to Addressables.", null, null);
+        }
+
+        private IEnumerator BloatScan(CleanupProgress p, Module module, string stage, Func<ProjectBloatAudit.Result> scan,
+            Action<ProjectBloatAudit.Result> store, string okMsg, string diagTitle, string rec, string fixText, Action fix)
+        {
+            p.NextStage(stage, 1);
+            p.SetDetail("Reading project assets...");
+            yield return null; // Let the progress panel paint before the (synchronous) scan starts.
+
+            var result = scan();
+            p.Advance("Done");
+            if (store != null) store(result);
+
+            SetIssues(module, result.Count);
+            RenderScanResults(module, result.Count, okMsg, diagTitle,
+                $"{result.Count} item(s)" + (result.Bytes > 0 ? $", ~{ProjectBloatAudit.FormatBytes(result.Bytes)}." : ".") +
+                (string.IsNullOrEmpty(result.Note) ? string.Empty : "\n" + result.Note.TrimEnd()),
+                rec, fixText, null, null, result.Items, fix);
+            SetStatus($"{module.Title}: {result.Count} item(s).");
+        }
+
+        private void ConfirmAndMove(Module module, ProjectBloatAudit.Result result, string noun, string title, Func<CleanupProgress, IEnumerator> routine)
+        {
+            if (result == null || result.MovablePaths.Count == 0)
+            {
+                SetStatus($"Nothing to move: scan first, or no {noun} were found.");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("Move " + noun,
+                    $"This moves {result.MovablePaths.Count} {noun} (~{ProjectBloatAudit.FormatBytes(result.Bytes)}) out of Assets into " +
+                    $"{ProjectBloatAudit.BackupRoot}/. Nothing is deleted; move them back to restore.\n\nMake sure your work is committed first.",
+                    "Move", "Cancel"))
+                return;
+
+            StartTask(title, routine);
+        }
+
+        private IEnumerator SamplesFixRoutine(CleanupProgress p)
+        {
+            return MoveFix(p, _samples, _samplesResult, "Moving sample folders", "Sample/Demo Folders Moved");
+        }
+
+        private IEnumerator TexturesFixRoutine(CleanupProgress p)
+        {
+            return MoveFix(p, _textures, _texturesResult, "Moving unused textures", "Unused Textures Moved");
+        }
+
+        private IEnumerator MoveFix(CleanupProgress p, Module module, ProjectBloatAudit.Result result, string stage, string doneTitle)
+        {
+            p.NextStage(stage, 1);
+            p.SetDetail("Moving files out of Assets...");
+            yield return null;
+
+            if (result == null)
+                yield break;
+
+            var before = result.Count;
+            var moved = ProjectBloatAudit.MoveToBackup(result.MovablePaths, out var backup);
+            p.Advance("Done");
+
+            SetIssues(module, Math.Max(0, before - moved));
+            result.MovablePaths.Clear();
+            result.Items.Clear();
+
+            RenderDiffCard(module, "✓ " + doneTitle, before, module.Issues,
+                $"Moved {moved} item(s) to {backup}. Nothing was deleted; move them back into Assets to restore.", null);
+            SetStatus($"{doneTitle}: {moved} item(s) in {backup}.");
         }
 
         private void ConfirmAndSlim()
@@ -1208,10 +1409,31 @@ namespace Wagenheimer.UnityUtils.Editor
                 stages += 1;
             }
 
+            if (_samples.Issues > 0 && _samplesResult != null && _samplesResult.MovablePaths.Count > 0)
+            {
+                steps.Add(Step("Moving sample folders", SamplesFixRoutine));
+                summary.Add($"- {_samples.Issues} unused sample/demo folder(s) (moved to {ProjectBloatAudit.BackupRoot}/)");
+                stages += 1;
+            }
+
+            if (_textures.Issues > 0 && _texturesResult != null && _texturesResult.MovablePaths.Count > 0)
+            {
+                steps.Add(Step("Moving unused textures", TexturesFixRoutine));
+                summary.Add($"- {_textures.Issues} unused texture(s) (moved to {ProjectBloatAudit.BackupRoot}/)");
+                stages += 1;
+            }
+
             if (_slim.Issues > 0)
             {
                 steps.Add(Step("Slimming the 2DxFX pack", SlimFixRoutine));
                 summary.Add($"- {_slim.Issues} unused 2DxFX item(s) (will be DELETED, ~{ThirdPartySlimResult.FormatBytes(_slimAudit != null ? _slimAudit.PendingBytes : 0)})");
+                stages += 1;
+            }
+
+            if (_urp.Issues > 0)
+            {
+                steps.Add(Step("Converting 2DxFX shaders to URP", UrpFixRoutine));
+                summary.Add($"- {_urp.Issues} 2DxFX shader(s) to convert to URP (originals backed up)");
                 stages += 1;
             }
 
@@ -1409,7 +1631,7 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             if (_healthLabel == null) return;
 
-            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _pool, _slim, _iap, _findings, _code };
+            var modules = new[] { _audio, _scripts, _tmp, _anim, _legacy, _pool, _slim, _urp, _samples, _textures, _size, _iap, _findings, _code };
             var scanned = 0;
             var withIssues = 0;
             var totalIssues = 0;

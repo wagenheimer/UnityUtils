@@ -27,6 +27,9 @@ namespace Wagenheimer.UnityUtils.Editor
             public ThirdPartyScanResult Scan;
             public readonly List<ThirdPartySlimFinding> Findings = new List<ThirdPartySlimFinding>();
 
+            /// <summary>Used shaders that are not URP-compatible yet (only filled in a URP project).</summary>
+            public readonly List<string> NonUrpShaders = new List<string>();
+
             public int PendingCount { get { return Findings.Count; } }
 
             public long PendingBytes
@@ -105,6 +108,21 @@ namespace Wagenheimer.UnityUtils.Editor
                 }
             }
 
+            if (scan.IsUrp)
+            {
+                foreach (var shader in scan.Shaders)
+                {
+                    if (!shader.IsUsed) continue;
+
+                    string text = null;
+                    try { text = System.IO.File.ReadAllText(ThirdPartyPathUtility.ToAbsolutePath(shader.Path)); }
+                    catch (System.Exception) { /* Unreadable: not reported. */ }
+
+                    if (text != null && !UrpShaderConverter.IsAlreadyUrp(text))
+                        result.NonUrpShaders.Add(shader.Path);
+                }
+            }
+
             foreach (var folder in scan.RemovableFolderPaths)
             {
                 result.Findings.Add(new ThirdPartySlimFinding
@@ -114,6 +132,18 @@ namespace Wagenheimer.UnityUtils.Editor
                     SizeBytes = ThirdPartyPathUtility.FolderSize(folder)
                 });
             }
+        }
+
+        /// <summary>Converts the used shaders to URP (originals are backed up first).</summary>
+        public static UrpConversionResult ConvertUrp(Result audit)
+        {
+            if (audit == null || !audit.PackFound || audit.Scan == null)
+                return new UrpConversionResult();
+
+            var result = UrpShaderConverter.ConvertUsedShaders(audit.Profile, audit.Scan, true);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            return result;
         }
 
         /// <summary>Applies the default (remove everything unused) slim to a scanned pack.</summary>

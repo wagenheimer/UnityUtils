@@ -54,6 +54,12 @@ namespace Wagenheimer.UnityUtils.Editor
             set => EditorPrefs.SetBool(IncludeSamplesPreference, value);
         }
 
+        /// <summary>True when a single folder name is one of the sample/demo names.</summary>
+        public static bool IsSampleFolderName(string folderName)
+        {
+            return !string.IsNullOrEmpty(folderName) && Array.IndexOf(SampleFolderNames, folderName.ToLowerInvariant()) >= 0;
+        }
+
         /// <summary>True when any folder in the path is named like a sample or demo folder.</summary>
         public static bool IsSampleOrDemoPath(string assetPath)
         {
