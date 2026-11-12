@@ -214,6 +214,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 {
                     bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Scanning sample folders", SamplesScanRoutine)));
                     bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Move Out of Assets", "btn-primary", () => ConfirmAndMove(_samples, _samplesResult, "sample/demo folder(s)", "Moving sample folders", SamplesFixRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Ignore list...", "btn-secondary", CleanupIgnoreList.OpenFile));
                 }));
             scroll.Add(BuildCard(_textures,
                 "Textures no scene, prefab, material, animation, shader default or script string references. Resources, StreamingAssets, Editor and Plugins are never touched. They are MOVED to UnusedAssetsBackup, not deleted.",
@@ -221,6 +222,7 @@ namespace Wagenheimer.UnityUtils.Editor
                 {
                     bar.Add(UnityUtilsUIStyle.CreateButton("Scan", "btn-secondary", () => StartTask("Scanning unused textures", TexturesScanRoutine)));
                     bar.Add(UnityUtilsUIStyle.CreateButton("Fix: Move Out of Assets", "btn-primary", () => ConfirmAndMove(_textures, _texturesResult, "texture(s)", "Moving unused textures", TexturesFixRoutine)));
+                    bar.Add(UnityUtilsUIStyle.CreateButton("Ignore list...", "btn-secondary", CleanupIgnoreList.OpenFile));
                 }));
             scroll.Add(BuildCard(_size,
                 "Resources folders above 10 MB (everything in them ships in the build) and the biggest assets of the last build report. Informational: decide what to shrink or move to Addressables.",
@@ -921,11 +923,38 @@ namespace Wagenheimer.UnityUtils.Editor
             if (store != null) store(result);
 
             SetIssues(module, result.Count);
-            RenderScanResults(module, result.Count, okMsg, diagTitle,
+            Action render = () => RenderScanResults(module, result.Count, okMsg, diagTitle,
                 $"{result.Count} item(s)" + (result.Bytes > 0 ? $", ~{ProjectBloatAudit.FormatBytes(result.Bytes)}." : ".") +
                 (string.IsNullOrEmpty(result.Note) ? string.Empty : "\n" + result.Note.TrimEnd()),
                 rec, fixText, null, null, result.Items, fix);
+            _rerender[module] = render;
+            render();
             SetStatus($"{module.Title}: {result.Count} item(s).");
+        }
+
+        private readonly Dictionary<Module, Action> _rerender = new Dictionary<Module, Action>();
+
+        private ProjectBloatAudit.Result BloatResultOf(Module module)
+        {
+            return module == _samples ? _samplesResult : module == _textures ? _texturesResult : null;
+        }
+
+        private void IgnorePath(Module module, string scope, string path, bool isFolder)
+        {
+            CleanupIgnoreList.Add(scope, path);
+
+            var result = BloatResultOf(module);
+            if (result == null) return;
+
+            Func<string, bool> covered = p => p.Equals(path, StringComparison.OrdinalIgnoreCase) ||
+                                              (isFolder && p.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase));
+
+            result.MovablePaths.RemoveAll(p => covered(p));
+            result.Items.RemoveAll(i => covered(i.AssetPath));
+
+            SetIssues(module, result.Count);
+            if (_rerender.TryGetValue(module, out var render)) render();
+            SetStatus($"Ignored {path}. Edit the list with 'Ignore list...'.");
         }
 
         private void ConfirmAndMove(Module module, ProjectBloatAudit.Result result, string noun, string title, Func<CleanupProgress, IEnumerator> routine)
@@ -1358,83 +1387,84 @@ namespace Wagenheimer.UnityUtils.Editor
         {
             var steps = new List<KeyValuePair<string, Func<CleanupProgress, IEnumerator>>>();
             var summary = new List<string>();
+            var stageParts = new List<int>();
             var stages = 0;
 
             if (_audio.Issues > 0)
             {
                 steps.Add(Step("Removing duplicate AudioListeners", AudioFixRoutine));
                 summary.Add($"- {_audio.Issues} duplicate AudioListener(s)");
-                stages += 2;
+                stages += 2; stageParts.Add(2);
             }
 
             if (_scripts.Issues > 0)
             {
                 steps.Add(Step("Removing missing scripts", ScriptsFixRoutine));
                 summary.Add($"- {_scripts.Issues} missing script(s)");
-                stages += 2;
+                stages += 2; stageParts.Add(2);
             }
 
             if (_tmp.Issues > 0)
             {
                 steps.Add(Step("Fixing TextMesh Pro redundancies", TmpFixAllRoutine));
                 summary.Add($"- {_tmp.Issues} TextMesh Pro redundancy(ies)");
-                stages += 2;
+                stages += 2; stageParts.Add(2);
             }
 
             if (_anim.Issues > 0)
             {
                 steps.Add(Step("Enabling Exit Time", p => AnimFixRoutine(p, AnimatorTransitionCleaner.FixMode.EnableExitTime)));
                 summary.Add($"- {_anim.Issues} Animator transition(s) (Exit Time will be enabled)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
             if (_findings.Issues > 0 && FixableFindingAssets() > 0)
             {
                 steps.Add(Step("Re-saving assets reported by Unity", FindingsFixRoutine));
                 summary.Add($"- {FixableFindingAssets()} asset(s) Unity reported as outdated (will be re-saved)");
-                stages += 2;
+                stages += 2; stageParts.Add(2);
             }
 
             if (_legacy.Issues > 0)
             {
                 steps.Add(Step("Upgrading plugin metadata", LegacyPluginFixRoutine));
                 summary.Add($"- {_legacy.Issues} legacy plugin meta file(s)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
             if (_pool.Issues > 0 && _poolDetection != null && _poolDetection.CanRun)
             {
                 steps.Add(Step("Migrating the legacy PoolManager", PoolFixRoutine));
                 summary.Add($"- Legacy PoolManager ({_pool.Issues} item(s); backed up under Library/UnityUtilsPoolMigrationBackup)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
             if (_samples.Issues > 0 && _samplesResult != null && _samplesResult.MovablePaths.Count > 0)
             {
                 steps.Add(Step("Moving sample folders", SamplesFixRoutine));
                 summary.Add($"- {_samples.Issues} unused sample/demo folder(s) (moved to {ProjectBloatAudit.BackupRoot}/)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
             if (_textures.Issues > 0 && _texturesResult != null && _texturesResult.MovablePaths.Count > 0)
             {
                 steps.Add(Step("Moving unused textures", TexturesFixRoutine));
                 summary.Add($"- {_textures.Issues} unused texture(s) (moved to {ProjectBloatAudit.BackupRoot}/)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
             if (_slim.Issues > 0)
             {
                 steps.Add(Step("Slimming the 2DxFX pack", SlimFixRoutine));
                 summary.Add($"- {_slim.Issues} unused 2DxFX item(s) (will be DELETED, ~{ThirdPartySlimResult.FormatBytes(_slimAudit != null ? _slimAudit.PendingBytes : 0)})");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
             if (_urp.Issues > 0)
             {
                 steps.Add(Step("Converting 2DxFX shaders to URP", UrpFixRoutine));
                 summary.Add($"- {_urp.Issues} 2DxFX shader(s) to convert to URP (originals backed up)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 
 #if WAGENHEIMER_UNITYUTILS_IAP
@@ -1442,7 +1472,7 @@ namespace Wagenheimer.UnityUtils.Editor
             {
                 steps.Add(Step("Removing unused IAP buttons", IapFixRoutine));
                 summary.Add($"- {_iap.Issues} unused IAP button(s)");
-                stages += 1;
+                stages += 1; stageParts.Add(1);
             }
 #endif
 
@@ -1454,13 +1484,21 @@ namespace Wagenheimer.UnityUtils.Editor
                 return;
             }
 
-            if (!EditorUtility.DisplayDialog("Fix All Recommended",
-                    "These fixes will be applied:\n\n" + string.Join("\n", summary) +
-                    "\n\nMake sure your work is committed first. You can cancel while it runs.",
-                    "Fix Everything", "Cancel"))
-                return;
+            // Let the user pick which fixes to apply.
+            CleanupFixPickerWindow.Open("Fix All Recommended", summary, chosen =>
+            {
+                if (chosen.Count == 0) return;
 
-            StartTask("Applying all recommended fixes", p => RunStepsRoutine(p, steps, stages));
+                var chosenSteps = new List<KeyValuePair<string, Func<CleanupProgress, IEnumerator>>>();
+                var chosenStages = 0;
+                foreach (var index in chosen)
+                {
+                    chosenSteps.Add(steps[index]);
+                    chosenStages += stageParts[index];
+                }
+
+                StartTask("Applying selected fixes", p => RunStepsRoutine(p, chosenSteps, chosenStages));
+            });
         }
 
         private static KeyValuePair<string, Func<CleanupProgress, IEnumerator>> Step(string name, Func<CleanupProgress, IEnumerator> routine)
@@ -1807,6 +1845,24 @@ namespace Wagenheimer.UnityUtils.Editor
                 pingBtn.text = "Show in Project";
                 pingBtn.AddToClassList("btn-ping");
                 row.Add(pingBtn);
+
+                if (!string.IsNullOrEmpty(item.IgnoreScope))
+                {
+                    var scope = item.IgnoreScope;
+                    var ignoreBtn = new Button(() => IgnorePath(module, scope, assetPath, false)) { text = "Ignore" };
+                    ignoreBtn.tooltip = "Never list this again (saved in ProjectSettings/WagenheimerCleanupIgnore.txt).";
+                    ignoreBtn.AddToClassList("btn-ping");
+                    row.Add(ignoreBtn);
+
+                    var folder = System.IO.Path.GetDirectoryName(assetPath)?.Replace('\\', '/');
+                    if (!string.IsNullOrEmpty(folder) && folder != "Assets")
+                    {
+                        var ignoreFolderBtn = new Button(() => IgnorePath(module, scope, folder, true)) { text = "Ignore folder" };
+                        ignoreFolderBtn.tooltip = "Ignore every item under " + folder + " (for example a folder packed by a Sprite Atlas).";
+                        ignoreFolderBtn.AddToClassList("btn-ping");
+                        row.Add(ignoreFolderBtn);
+                    }
+                }
 
                 listContainer.Add(row);
             }

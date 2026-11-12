@@ -24,7 +24,7 @@ namespace Wagenheimer.UnityUtils.Editor
         private static readonly string[] YamlExtensions =
         {
             ".unity", ".prefab", ".mat", ".anim", ".controller", ".overridecontroller", ".asset", ".playable",
-            ".mixer", ".spriteatlas", ".flare", ".cubemap", ".guiskin", ".lighting", ".shadergraph",
+            ".mixer", ".spriteatlas", ".spriteatlasv2", ".flare", ".cubemap", ".guiskin", ".lighting", ".shadergraph",
             ".shadersubgraph", ".vfx", ".uxml", ".uss", ".tss", ".inputactions", ".signal", ".brush", ".preset"
         };
 
@@ -69,6 +69,8 @@ namespace Wagenheimer.UnityUtils.Editor
 
             foreach (var folder in candidates)
             {
+                if (CleanupIgnoreList.IsIgnored(CleanupIgnoreList.Samples, folder)) continue;
+
                 var blocker = FindBlocker(folder, yaml, scripts, buildScenes);
                 if (blocker != null)
                 {
@@ -85,6 +87,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     TargetName = folder,
                     Description = $"Sample/demo folder nothing in the project uses ({FormatBytes(size)})",
                     Category = "Samples",
+                    IgnoreScope = CleanupIgnoreList.Samples,
                     Count = 1
                 });
             }
@@ -172,6 +175,15 @@ namespace Wagenheimer.UnityUtils.Editor
             foreach (var file in Directory.GetFiles("ProjectSettings", "*.asset"))
                 AddGuids(file, referenced);
 
+            // A Sprite Atlas packs whole folders: referencing the folder GUID uses everything inside it.
+            var referencedFolders = new List<string>();
+            foreach (var guid in referenced)
+            {
+                var folderPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (!string.IsNullOrEmpty(folderPath) && AssetDatabase.IsValidFolder(folderPath))
+                    referencedFolders.Add(folderPath);
+            }
+
             var quoted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var script in scripts)
             {
@@ -189,6 +201,8 @@ namespace Wagenheimer.UnityUtils.Editor
                 if (!ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())) continue;
                 if (IsInProtectedFolder(path) || sampleFolders.Any(f => IsUnder(path, f))) continue;
                 if (referenced.Contains(guid)) continue;
+                if (CleanupIgnoreList.IsIgnored(CleanupIgnoreList.Textures, path)) continue;
+                if (referencedFolders.Any(f => IsUnder(path, f))) continue;
 
                 var name = Path.GetFileNameWithoutExtension(path);
                 if (quoted.Contains(name) || quoted.Contains(path) || quoted.Contains(Path.GetFileName(path))) continue;
@@ -202,6 +216,7 @@ namespace Wagenheimer.UnityUtils.Editor
                     TargetName = Path.GetFileName(path),
                     Description = $"Texture no scene, prefab, material, animation or script references ({FormatBytes(size)})",
                     Category = "Unused texture",
+                    IgnoreScope = CleanupIgnoreList.Textures,
                     Count = 1
                 });
             }

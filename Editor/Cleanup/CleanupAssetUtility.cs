@@ -233,6 +233,9 @@ namespace Wagenheimer.UnityUtils.Editor
         public string TargetName;
         public string Description;
         public string Category;
+
+        /// <summary>When set, the UI offers an "Ignore" button that adds the path to this <see cref="CleanupIgnoreList"/> scope.</summary>
+        public string IgnoreScope;
         public bool IsScene;
         public bool IsPrefab;
         public int Count;
