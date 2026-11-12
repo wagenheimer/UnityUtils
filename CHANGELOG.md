@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.28.0] - 2026-11-12
+
+### Added
+- URP shader conversion, unused sample folders and textures, build size audit, optional auto-scan
+
 ## [1.27.1] - 2026-11-12
 
 ### Added
