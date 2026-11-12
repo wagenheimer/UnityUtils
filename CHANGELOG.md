@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.27.0] - 2026-11-12
+
+### Added
+- TMP scan also detects and fixes missing required components (e.g. CanvasGroup on Dialog)
+
 ## [1.26.0] - 2026-11-11
 
 ### Added
