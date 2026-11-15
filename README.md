@@ -18,6 +18,7 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
 - **App file log + DEBUG button (`AppFileLog`)**:
   - Starts by itself and writes every Unity log line to `persistentDataPath/logs/game-log.txt` (previous run kept as `game-log-prev.txt`), so a device session can be read after a crash.
   - Optional upload to the **AppDeployHub Forge**: create `Resources/Wagenheimer/AppLogSettings` (menu *Wagenheimer > Debug Log > Create Settings*), set the server URL and the upload key (`DeviceLogs__UploadKey` on the Forge). In Development Builds a small **DEBUG** button then opens a panel with *Send log to Forge* and *Auto-send when an error happens*. The Forge stores the file and raises a notification with a link.
+  - **AppMemoryGuard**: logs a memory summary every 30 s in development builds and, on the OS low-memory warning, logs the numbers and unloads unused assets.
   - Store builds are untouched: the button and upload are off unless `allowInReleaseBuilds` is ticked.
 - **Toast and BusyOverlay**: code-built UI, no prefab. Toast.Show(message) is a non-blocking bottom message; BusyOverlay.Show(text) / BusyOverlay.Hide() dims the screen with animated dots and blocks taps (self-hides after 70 s).
 - **Project Cleanup Suite**:
