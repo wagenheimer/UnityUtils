@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.34.0] - 2026-11-15
+
+### Added
+- Toast and BusyOverlay, code-built messages with no prefab
+
 ## [1.33.0] - 2026-11-15
 
 ### Added
