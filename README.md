@@ -15,6 +15,10 @@ Includes a modern **UI Toolkit Dashboard**, an automated **Bootstrap Diagnostic 
   - Additively loads persistent singletons (`AudioManager`, `GameManager`, UI canvases, etc.) before any other scene's `Awake` runs.
   - Automatically handles playing directly from the bootstrap scene in Editor Play Mode by loading the first Build Settings scene additively.
   - **Diagnostic Checker (`BootstrapChecker`)**: Audits settings asset placement, scene presence on disk, Build Settings order (bootstrap must NOT be the first scene), and detects leaking prefabs in gameplay scenes with **One-Click Quick Fixes**.
+- **App file log + DEBUG button (`AppFileLog`)**:
+  - Starts by itself and writes every Unity log line to `persistentDataPath/logs/game-log.txt` (previous run kept as `game-log-prev.txt`), so a device session can be read after a crash.
+  - Optional upload to the **AppDeployHub Forge**: create `Resources/Wagenheimer/AppLogSettings` (menu *Wagenheimer > Debug Log > Create Settings*), set the server URL and the upload key (`DeviceLogs__UploadKey` on the Forge). In Development Builds a small **DEBUG** button then opens a panel with *Send log to Forge* and *Auto-send when an error happens*. The Forge stores the file and raises a notification with a link.
+  - Store builds are untouched: the button and upload are off unless `allowInReleaseBuilds` is ticked.
 - **Project Cleanup Suite**:
   - **Audio Listener Cleaner**: Removes duplicate `AudioListener` components across scenes and prefabs, enforcing a single persistent listener.
   - **Missing Script Cleaner**: Detects and strips missing MonoBehaviour script references across all scenes and prefabs.
