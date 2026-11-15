@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.33.0] - 2026-11-15
+
+### Added
+- AppFileLog with persistent log file, DEBUG button and Forge log upload
+
 ## [1.32.0] - 2026-11-12
 
 ### Added
