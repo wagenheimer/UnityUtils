@@ -2,6 +2,11 @@ name: UnityUtils
 
 # Changelog
 
+## [1.35.0] - 2026-11-15
+
+### Added
+- AppMemoryGuard logs memory and reacts to the OS low-memory warning
+
 ## [1.34.0] - 2026-11-15
 
 ### Added
